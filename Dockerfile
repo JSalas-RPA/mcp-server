@@ -1,7 +1,17 @@
-FROM denoland/deno:alpine-1.37.2
+# Usamos Python slim para que sea liviano
+FROM python:3.13-slim
 
+# Directorio de trabajo
 WORKDIR /app
-COPY server.ts .
-RUN deno cache server.ts
+
+# Copiar e instalar dependencias
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código
+COPY . .
+
 EXPOSE 7000
-CMD ["run", "--allow-net", "server.ts"]
+
+# Ejecutar servidor MCP
+CMD ["python", "server.py"]
