@@ -38,7 +38,7 @@ def subtract(a: int, b: int) -> int:
     return a - b
 
 if __name__ == "__main__":
-    port = 8080  # puerto fijo
+    port = 7000  # puerto fijo
     logger.info(f"MCP server started on port {port}")
     
     asyncio.run(
