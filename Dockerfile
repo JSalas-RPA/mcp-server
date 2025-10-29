@@ -1,4 +1,3 @@
-
 # Imagen base
 FROM python:3.11-slim
 
@@ -16,9 +15,7 @@ RUN apt-get update && apt-get install -y \
 # Instalar dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-
-# Puerto por defecto
-ENV PORT=7000
+EXPOSE 7000
 
 # Comando de inicio
 CMD ["python", "mcp_server.py"]
