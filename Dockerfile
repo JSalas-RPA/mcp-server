@@ -18,4 +18,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 7000
 
 # Comando de inicio
-CMD ["python", "mcp_server.py"]
+CMD ["python", "server.py"]
