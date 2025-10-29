@@ -1,17 +1,24 @@
-# Usamos Python slim para que sea liviano
-FROM python:3.13-slim
+
+# Imagen base
+FROM python:3.11-slim
 
 # Directorio de trabajo
 WORKDIR /app
 
-# Copiar e instalar dependencias
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copiar código
+# Copiar archivos del proyecto
 COPY . .
 
-EXPOSE 7000
+# Instalar dependencias del sistema (para PDFs)
+RUN apt-get update && apt-get install -y \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 
-# Ejecutar servidor MCP
-CMD ["python", "server.py"]
+# Instalar dependencias de Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+
+# Puerto por defecto
+ENV PORT=7000
+
+# Comando de inicio
+CMD ["python", "mcp_server.py"]
