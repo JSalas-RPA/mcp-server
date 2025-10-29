@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+.venv/
+
+# Entorno local / secretos
+.env                 # para no subir credenciales de GCP
+
+# Docker
+*.log
