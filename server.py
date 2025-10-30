@@ -16,7 +16,6 @@ mcp = FastMCP("MCP Server on Cloud Run")
 # Tool MCP: validar_factura
 # ------------------------------
 @mcp.tool()
-
 def validar_factura(rutas_bucket: list[str]) -> dict:
     """
     Valida facturas desde Google Cloud Storage.
