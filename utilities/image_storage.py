@@ -12,7 +12,7 @@ import os
 # TWILIO_AUTH_TOKEN = config['twilio']['auth_token']
 
 # # Configurar cliente de GCS
-BUCKET_NAME = os.getenv("BUCKET_NAME", "mi-bucket")
+BUCKET_NAME = os.getenv("BUCKET_NAME", "mcp-facturas-bucket")
 storage_client = storage.Client()
 bucket = storage_client.bucket(BUCKET_NAME)
 
