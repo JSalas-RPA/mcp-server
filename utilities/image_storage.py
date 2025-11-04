@@ -35,14 +35,12 @@ def upload_file_base64_to_gcs(user_email: str, file_base64: str):
             content_type = "application/pdf"
             file_data = base64.b64decode(file_base64)
 
-        # Limpiar email para usar como carpeta
-        sanitized_email = user_email.replace("@", "_at_").replace(".", "_")
 
         # Extensión del archivo
         file_extension = content_type.split('/')[-1]
 
         # Nombre del archivo igual que tu ejemplo
-        file_name = f"{sanitized_email}/{content_type.split('/')[0]}_{int(time.time())}.{file_extension}"
+        file_name = f"{user_email}/{content_type.split('/')[0]}_{int(time.time())}.{file_extension}"
 
         # Subir a GCS
         bucket = storage_client.bucket(BUCKET_NAME)
