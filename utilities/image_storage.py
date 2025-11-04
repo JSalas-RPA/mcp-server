@@ -49,7 +49,7 @@ def upload_file_base64_to_gcs(user_email: str, file_base64: str):
         blob.make_public()  # para obtener URL pública
 
         print(f"{content_type.split('/')[0]} subida a gs://{BUCKET_NAME}/{file_name}")
-        return f"https://storage.googleapis.com/{BUCKET_NAME}/{file_name}"
+        return file_name
     except Exception as e:
         print(f"Error al subir archivo a GCS: {e}")
         return None
