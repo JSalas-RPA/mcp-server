@@ -31,6 +31,18 @@ def validar_factura(rutas_bucket: list[str]) -> dict:
     logger.info(f">>> 🛠️ Resultado: {resultado}")
     return resultado
 
+@mcp.tool()
+def subir_pdf_base64(user_email: str, file_base64: str) -> str:
+    """
+    Tool para ChatKit/Agent Builder:
+    Sube PDF o imagen desde base64 a GCS y devuelve la URL pública.
+    """
+    url = upload_file_base64_to_gcs(user_email, file_base64)
+    if url:
+        return f"Archivo subido correctamente: {url}"
+    else:
+        return "Error al subir el archivo."
+
 # ------------------------------
 # Run server MCP
 # ------------------------------
