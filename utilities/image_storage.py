@@ -5,6 +5,9 @@ import os
 import time
 import base64
 import re
+import requests
+import numpy as np
+from datetime import timedelta
 
 # from src.utilities.config import load_config
 # # from src.preprocessing_images import extract_signature, clean_signature, analizar_documento_google, generateScore
@@ -18,6 +21,47 @@ import re
 BUCKET_NAME = os.getenv("BUCKET_NAME", "mcp-facturas-bucket")
 storage_client = storage.Client()
 bucket = storage_client.bucket(BUCKET_NAME)
+EASYCONTACT_KEY ="3HEfwgZ9EQoRLJrkmCtUf4rY"
+ENVIRONMENT = "3HEfwgZ9EQoRLJrkmCtUf4rY"
+
+def upload_image_to_gcs(user_id, image_url):
+    print(f'Media URL: {image_url}')
+    
+    try:
+        if ENVIRONMENT == EASYCONTACT_KEY:
+            r = requests.get(image_url, verify=False)
+        else:
+            r = requests.get(image_url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN))
+        r.raise_for_status()
+    except requests.RequestException as e:
+        print(f"Error al descargar la imagen: {e}")
+        return None
+
+    content_type = r.headers.get("Content-Type", "")
+    print(f"Content-Type: {content_type}")
+
+    # if content_type not in ["image/jpeg", "image/png", "image/gif", "pdf"]:
+    #     print("Formato de imagen no soportado.")
+    #     return None
+
+    image_data = r.content
+    image_extension = content_type.split("/")[-1]
+
+    # if ENVIRONMENT != EASYCONTACT_KEY:
+    user_id = user_id[1:]
+    image_name = f"{user_id}/{content_type.split('/')[0]}_{int(time.time())}.{image_extension}"
+    
+    try:
+        bucket = storage_client.bucket(BUCKET_NAME)
+        blob = bucket.blob(image_name)
+        blob.upload_from_string(image_data, content_type=content_type)
+
+        print(f"{content_type.split('/')[0]} subida a gs://{BUCKET_NAME}/{image_name}")
+        return image_name
+    except Exception as e:
+        print(f"Error al subir la imagen a GCS: {e}")
+        return None
+    
 
 def upload_file_base64_to_gcs(user_email: str, file_base64: str):
     """
