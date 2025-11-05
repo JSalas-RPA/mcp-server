@@ -15,6 +15,7 @@ mcp = FastMCP("MCP Server on Cloud Run")
 # ------------------------------
 # Tool MCP: validar_factura
 # ------------------------------
+
 @mcp.tool()
 def validar_factura(rutas_bucket: list[str]) -> dict:
     """
@@ -42,6 +43,27 @@ def subir_pdf_base64(user_email: str, file_base64: str) -> str:
         return f"Archivo subido correctamente: {url}"
     else:
         return "Error al subir el archivo."
+
+@mcp.tool()
+def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
+    """
+    Sube la factura desde el link de easycontact a Google cloud storage.
+    
+    Parámetro:
+        user_email: email del usuario que envía el mensaje.
+        image_url: url del archivo adjunto en easycontact(puede ser pdf, imagen, doc, etc.) 
+    
+    Devuelve:
+        Confirmación de subida de archivo.
+    """
+    url = upload_file_base64_to_gcs(user_email, file_base64)
+    if url:
+        return f"Archivo subido correctamente: {url}"
+    else:
+        return "Error al subir el archivo."
+
+
+
 
 # ------------------------------
 # Run server MCP
