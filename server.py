@@ -5,6 +5,7 @@ from fastmcp import FastMCP
 
 # Importar tu tool de facturas
 from tool import validar_factura_tool, enviar_factura_a_sheets_tool
+from utilities.image_storage import upload_image_to_gcs
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
@@ -44,7 +45,7 @@ def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
     Devuelve:
         Confirmación de subida de archivo.
     """
-    url = upload_file_base64_to_gcs(user_email, file_base64)
+    url = upload_image_to_gcs(user_email, file_base64)
     if url:
         return f"Archivo subido correctamente: {url}"
     else:
