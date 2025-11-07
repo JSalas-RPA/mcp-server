@@ -6,6 +6,9 @@ from utilities.general import (
     get_clean_json
 )
 from prompts import get_invoice_validator_prompt
+from datetime import datetime
+import requests
+
 
 
 def validar_factura_tool(rutas_bucket: list[str]) -> dict:
@@ -110,5 +113,26 @@ def validar_factura_tool(rutas_bucket: list[str]) -> dict:
         print(error_msg)
         return {"status": "error", "error": str(e)}
 
+def enviar_factura_a_sheets_tool(factura: dict, correo: str) -> dict:
+    """
+    Envía los datos de una factura a un Google Sheets personal
+    mediante un Apps Script WebApp.
+    """
+    SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxJ8xJc.../exec"
+
+    payload = {
+        "factura": factura,
+        "correo": correo,
+        "timestamp": datetime.now().isoformat()
+    }
+
+    try:
+        response = requests.post(SCRIPT_URL, json=payload)
+        if response.status_code == 200:
+            return {"status": "success", "message": response.text}
+        else:
+            return {"status": "error", "message": f"HTTP {response.status_code}: {response.text}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
