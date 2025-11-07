@@ -4,7 +4,7 @@ import os
 from fastmcp import FastMCP
 
 # Importar tu tool de facturas
-from tool import validar_factura_tool
+from tool import validar_factura_tool, enviar_factura_a_sheets_tool
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
@@ -62,7 +62,22 @@ def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
     else:
         return "Error al subir el archivo."
 
+@mcp.tool()
+def enviar_factura(factura: dict, correo: str) -> dict:
+    """
+    envía la factura a sheets para ser registrada, solo cuando es válida.
 
+    Parámetros:
+        factura: dict con todos los datos de la factura.
+        correo: el correo del remitente.
+
+    Devuelve:
+        dict con status y mensaje de la operación.
+    """
+    logger.info(f">>> 🛠️ Tool: 'enviar_factura' called with factura={factura} correo={correo}")
+    resultado = enviar_factura_a_sheets_tool(factura, correo)
+    logger.info(f">>> 🛠️ Resultado: {resultado}")
+    return resultado
 
 
 # ------------------------------
