@@ -33,18 +33,6 @@ def validar_factura(rutas_bucket: list[str]) -> dict:
     return resultado
 
 @mcp.tool()
-def subir_pdf_base64(user_email: str, file_base64: str) -> str:
-    """
-    Tool para ChatKit/Agent Builder:
-    Sube PDF o imagen desde base64 a GCS y devuelve la URL pública.
-    """
-    url = upload_file_base64_to_gcs(user_email, file_base64)
-    if url:
-        return f"Archivo subido correctamente: {url}"
-    else:
-        return "Error al subir el archivo."
-
-@mcp.tool()
 def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
     """
     Sube la factura desde el link de easycontact a Google cloud storage.
