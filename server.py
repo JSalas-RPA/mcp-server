@@ -45,7 +45,7 @@ def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
     Devuelve:
         Confirmación de subida de archivo.
     """
-    url = upload_image_to_gcs(user_email, file_base64)
+    url = upload_image_to_gcs(user_email, image_url)
     if url:
         return f"Archivo subido correctamente: {url}"
     else:
