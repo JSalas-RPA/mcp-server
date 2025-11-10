@@ -48,7 +48,6 @@ def upload_image_to_gcs(user_id, image_url):
     image_extension = content_type.split("/")[-1]
 
     # if ENVIRONMENT != EASYCONTACT_KEY:
-    user_id = user_id[1:]
     image_name = f"{user_id}/{content_type.split('/')[0]}_{int(time.time())}.{image_extension}"
     
     try:
