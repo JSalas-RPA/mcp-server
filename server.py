@@ -49,7 +49,7 @@ def enviar_factura_a_sheets(factura: dict, correo_remitente: str) -> dict:
     logger.info(f">>> 🧾 Tool: 'enviar_factura_a_sheets' llamada con correo={correo_remitente}")
     
     # URL del Apps Script desplegado (reemplaza con la tuya)
-    SCRIPT_URL = os.getenv("APPS_SCRIPT_URL", "https://script.google.com/macros/s/TU_DEPLOY_ID/exec")
+    SCRIPT_URL = os.getenv("APPS_SCRIPT_URL", "https://script.google.com/macros/s/AKfycbwNp08Jo3wZyl3MrZphOse7heWAwhJQvmjCMCU8qwPAO1pVczZfWPMWMpjw71AWXaZS/exec")
 
     # Añadimos los campos adicionales
     factura["correo_remitente"] = correo_remitente
