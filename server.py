@@ -1,8 +1,9 @@
 import asyncio
 import logging
 import os
+import requests
 from fastmcp import FastMCP
-
+from datetime import datetime
 # Importar tu tool de facturas
 from tool import validar_factura_tool, enviar_factura_a_sheets_tool
 from utilities.image_storage import upload_image_to_gcs
@@ -32,6 +33,41 @@ def validar_factura(rutas_bucket: list[str]) -> dict:
     resultado = validar_factura_tool(rutas_bucket)
     logger.info(f">>> 🛠️ Resultado: {resultado}")
     return resultado
+
+@mcp.tool()
+def enviar_factura_a_sheets(factura: dict, correo_remitente: str) -> dict:
+    """
+    Envía los datos de una factura a Google Sheets a través del Apps Script.
+
+    Parámetros:
+        factura: dict con los datos validados de la factura.
+        correo_remitente: correo que realizó la consulta.
+
+    Devuelve:
+        dict con el resultado de la operación.
+    """
+    logger.info(f">>> 🧾 Tool: 'enviar_factura_a_sheets' llamada con correo={correo_remitente}")
+    
+    # URL del Apps Script desplegado (reemplaza con la tuya)
+    SCRIPT_URL = os.getenv("APPS_SCRIPT_URL", "https://script.google.com/macros/s/TU_DEPLOY_ID/exec")
+
+    # Añadimos los campos adicionales
+    factura["correo_remitente"] = correo_remitente
+    factura["fecha_hora_consulta"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Enviamos la solicitud
+    try:
+        response = requests.post(SCRIPT_URL, json=factura, timeout=10)
+        if response.status_code == 200:
+            logger.info("✅ Datos enviados correctamente a Google Sheets.")
+            return {"success": True, "status": 200, "response": response.text}
+        else:
+            logger.error(f"❌ Error al enviar a Sheets: {response.text}")
+            return {"success": False, "status": response.status_code, "error": response.text}
+    except Exception as e:
+        logger.error(f"⚠️ Excepción al enviar factura: {e}")
+        return {"success": False, "error": str(e)}
+
 
 @mcp.tool()
 def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
