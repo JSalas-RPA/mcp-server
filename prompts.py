@@ -2,6 +2,8 @@ def get_invoice_validator_prompt(invoice_text):
     """
     Prompt mejorado para facturas bolivianas:
     - Reconoce NIT/CI/CEX del cliente
+    - Reconoce nombre del cliente o empresa emisora de la factura
+    - Reconoce número de factura
     - Reconoce código de autorización
     - Reconoce subtotal y total
     - Extrae productos y precios en un array
@@ -11,8 +13,6 @@ def get_invoice_validator_prompt(invoice_text):
 Asume el rol de un verificador experto de facturas bolivianas. 
 Tu tarea es analizar el texto OCR y determinar si corresponde a una **factura boliviana válida**.
 
-📅 Fecha actual de referencia: 2025-10-29  
-Una factura es **vigente** si su fecha de emisión tiene menos de 6 meses respecto a esta fecha.
 
 ---
 
@@ -65,45 +65,37 @@ Una factura es **vigente** si su fecha de emisión tiene menos de 6 meses respec
 - Etiquetas: “SUBTOTAL BS”, “SUBTOTAL”, “TOTAL BS”, “TOTAL A PAGAR BS”, “Importe Base Crédito Fiscal”.  
 - Normaliza valores a números decimales.
 
-**12. productos**  
-- Busca líneas con: descripción del producto/servicio, cantidad, precio unitario y subtotal.  
-- Devuelve un array de objetos:
-  ```json
-  "productos": [
-    {
-      "producto": "Tarifa de servicio",
-      "cantidad": 2,
-      "precio_unitario": 1.00,
-      "subtotal": 2.00
-    }
-  ]
-Si no hay productos detectables, devuelve array vacío [].
 
-Salida obligatoria (JSON EXACTO):
-{
-    "factura_valida": true,
-    "vigente": true,
-    "empresa_emisora": "PEDIDOSYA SERVICIOS S.A.",
-    "nit_factura": 358245025,
-    "numero_factura": 32808208,
-    "codigo_autorizacion": "18831A4071EF489297D373099844DAE348CDC50A016B6F00E6F232F74",
-    "razon_social_cliente": "PAZ",
-    "nit_ci_ce_cliente": 4818378,
-    "codigo_cliente": "PZ001",
-    "fecha_emision": "2025-10-24",
-    "direccion": "CALLE J, EDIFICIO MANZANA 40 PLAZA EMPRESARIAL TORRE II PISO 24 ENTRE AV. SAN MARTIN Y AV. SALVADOR, BARRIO EQUIPETROL",
-    "ciudad": "Santa Cruz",
-    "subtotal": 2.00,
-    "monto_total": 2.00,
-    "productos": [
-        {
-            "producto": "Tarifa de servicio",
-            "cantidad": 2,
-            "precio_unitario": 1.00,
-            "subtotal": 2.00
+Salida obligatoria  a la cual siempre se tiene que adptar ya que sera para cargada SAP s4 hana(JSON EXACTO):
+    {
+    "d": {
+        "CompanyCode": "1000",
+        "DocumentDate": "2025-10-05T00:00:00",  
+        "PostingDate": "2025-10-05T00:00:00", 
+        "SupplierInvoiceIDByInvcgParty": "HIPERMAXI S.A.",
+        "InvoicingParty": "10000000",
+        "DocumentCurrency": "BOB",
+        "InvoiceGrossAmount": "2500.00",
+        "DueCalculationBaseDate": "2025-10-05T00:00:00", 
+        "TaxIsCalculatedAutomatically": true,
+        "TaxDeterminationDate": "2025-10-05T00:00:00",  
+        "SupplierInvoiceStatus": "A",
+        "to_SuplrInvcItemPurOrdRef": {
+        "results": [
+            {
+            "SupplierInvoiceItem": "00001",
+            "PurchaseOrder": "4500000004",
+            "PurchaseOrderItem": "00020",
+            "DocumentCurrency": "BOB",
+            "QuantityInPurchaseOrderUnit": "500.000",
+            "PurchaseOrderQuantityUnit": "EA",
+            "SupplierInvoiceItemAmount": "2500.00",
+            "TaxCode": "V0"
+            }
+        ]
         }
-    ]
-}
+    }
+    }
 
 
 Si no es válida:

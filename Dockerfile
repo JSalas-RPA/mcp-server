@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
 # Instalar dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 7000
+EXPOSE 8000
 
 # Comando de inicio
 CMD ["python", "server.py"]

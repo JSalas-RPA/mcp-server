@@ -8,7 +8,7 @@ from PIL import Image
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "datec-d4g-adn.json"
 
-openai_client = OpenAI(api_key="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")
+openai_client = OpenAI(api_key="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")
 parser = LlamaParse(api_key= "llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
                     result_type="text",
                     premium_mode=True)
