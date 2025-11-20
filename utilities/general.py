@@ -6,9 +6,11 @@ from google.cloud import vision_v1
 from PIL import Image
 
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "datec-d4g-adn.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "datec-d4g-adn-a.json"
 
-openai_client = OpenAI(api_key="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")
+openai_client = OpenAI(api_key=os.getenv("API_OPENAI_KEY"))
+
+
 parser = LlamaParse(api_key= "llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
                     result_type="text",
                     premium_mode=True)
