@@ -1,143 +1,58 @@
-def get_invoice_validator_prompt(invoice_text):
-    """
-    Prompt mejorado para facturas bolivianas:
-    - Reconoce NIT/CI/CEX del cliente
-    - Reconoce nombre del cliente o empresa emisora de la factura
-    - Reconoce número de factura
-    - Reconoce código de autorización
-    - Reconoce subtotal y total
-    - Extrae productos y precios en un array
-    """
 
+
+
+import json
+
+
+def get_invoice_validator_prompt(invoice_json, suppliers_json):
+    """
+    Crea los prompts para OpenAI para extraer datos del proveedor según la factura.
+    """
+    supplier_name_in_invoice = invoice_json["d"]["SupplierInvoiceIDByInvcgParty"]
+    
     system_prompt = """
-Asume el rol de un verificador experto de facturas bolivianas. 
-Tu tarea es analizar el texto OCR y determinar si corresponde a una **factura boliviana válida**.
+Eres un agente especializado en procesamiento de facturas. 
+Se te proporcionará un nombre de proveedor extraído de una factura y un JSON con los proveedores disponibles.
+Tu tarea es buscar dentro del JSON del proveedor cuyo nombre coincida (o sea muy similar) con el de la factura y devolver los campos clave para crear la orden de compras:
+- Supplier
+- SupplierFullName
+- SupplierName
+- SupplierAccountGroup
 
-
----
-
-### Heurísticas clave:
-
-**1. empresa_emisora**  
-- Aparece en las primeras líneas o junto a “EMISOR”, “FACTURANTE”, “RAZÓN SOCIAL DEL EMISOR”.  
-- Ignora textos genéricos (ej. “emizor”, “sistema de facturación”).  
-- Concatena líneas contiguas si el nombre está partido.
-
-**2. nit_factura**  
-- Cerca del nombre de la empresa emisora o etiquetado como “NIT”.  
-- Devuelve solo números (entero).
-
-**3. numero_factura**  
-- Etiquetas: “FACTURA N°”, “FACTURA Nº”, “Nº FACTURA”.  
-- Extrae número entero.
-
-**4. codigo_autorizacion**  
-- Etiquetas: “COD. AUTORIZACIÓN”, “CÓDIGO AUTORIZACIÓN”, “AUTORIZACIÓN”.  
-- Puede estar roto por OCR; concatena líneas contiguas si es necesario.  
-- Devuelve como string alfanumérico.
-
-**5. razon_social_cliente**  
-- Etiquetas: “Nombre/Razón Social”, “Señor(es):”, “CLIENTE”.  
-- Combina líneas hasta encontrar otro campo.
-
-**6. nit_ci_ce_cliente**  
-- Etiquetas: “NIT/CI/CEX”, “NIT/CI”, “CI/NIT”, “Carnet de Identidad”.  
-- Prioriza valor cercano a razón social cliente.  
-- Puede ser número o string si es CEX.
-
-**7. codigo_cliente**  
-- Etiquetas: “Código Cliente”, “Cod. Cliente”.  
-- Extrae números o texto corto.
-
-**8. fecha_emision**  
-- Formatos: DD/MM/YYYY, D/M/YYYY, YYYY-MM-DD (con o sin hora).  
-- Normaliza a “YYYY-MM-DD”.
-
-**9. direccion**  
-- Busca “CALLE”, “AV.”, “EDIFICIO”, “ENTRE AV.”, “BARRIO”.  
-- Combina hasta encontrar NIT, Teléfono, Ciudad o Fecha.
-
-**10. ciudad**  
-- Palabras clave: “La Paz”, “Santa Cruz”, “Cochabamba”, etc.  
-- Elige la más cercana a la dirección o fecha.
-
-**11. subtotal y monto_total**  
-- Etiquetas: “SUBTOTAL BS”, “SUBTOTAL”, “TOTAL BS”, “TOTAL A PAGAR BS”, “Importe Base Crédito Fiscal”.  
-- Normaliza valores a números decimales.
-
-
-Salida obligatoria  a la cual siempre se tiene que adptar ya que sera para cargada SAP s4 hana(JSON EXACTO):
-    {
-    "d": {
-        "CompanyCode": "1000",
-        "DocumentDate": "2025-10-05T00:00:00",  
-        "PostingDate": "2025-10-05T00:00:00", 
-        "SupplierInvoiceIDByInvcgParty": "HIPERMAXI S.A.",
-        "InvoicingParty": "10000000",
-        "DocumentCurrency": "BOB",
-        "InvoiceGrossAmount": "2500.00",
-        "DueCalculationBaseDate": "2025-10-05T00:00:00", 
-        "TaxIsCalculatedAutomatically": true,
-        "TaxDeterminationDate": "2025-10-05T00:00:00",  
-        "SupplierInvoiceStatus": "A",
-        "to_SuplrInvcItemPurOrdRef": {
-        "results": [
-            {
-            "SupplierInvoiceItem": "00001",
-            "PurchaseOrder": "4500000004",
-            "PurchaseOrderItem": "00020",
-            "DocumentCurrency": "BOB",
-            "QuantityInPurchaseOrderUnit": "500.000",
-            "PurchaseOrderQuantityUnit": "EA",
-            "SupplierInvoiceItemAmount": "2500.00",
-            "TaxCode": "V0"
-            }
-        ]
-        }
-    }
-    }
-
-
-Si no es válida:
-
-{
-    "factura_valida": false,
-    "vigente": false,
-    "empresa_emisora": null,
-    "nit_factura": null,
-    "numero_factura": null,
-    "codigo_autorizacion": null,
-    "razon_social_cliente": null,
-    "nit_ci_ce_cliente": null,
-    "codigo_cliente": null,
-    "fecha_emision": null,
-    "direccion": null,
-    "ciudad": null,
-    "subtotal": null,
-    "monto_total": null,
-    "productos": []
-}
-
-
-Responde solo con el JSON válido, sin explicaciones.
+Devuelve solo un JSON con esos campos, sin explicaciones adicionales.
 """
-
+    
     user_prompt = f"""
-Texto del documento (OCR):
-\"\"\"{invoice_text}\"\"\"
+Proveedor en la factura: "{supplier_name_in_invoice}"
 
-Instrucciones:
-- Aplica todas las heurísticas del system prompt.
-- Reconstruye códigos y NITs aunque estén rotos en varias líneas.
-- Normaliza números (decimal con punto).
-- Extrae productos y precios en un array bajo la clave "productos".
-- Devuelve solo un JSON exacto con las claves indicadas.
-- Solo no es valida si no tiene empresa emisora, NIT, numero de factura o total.
+JSON de proveedores: {json.dumps(suppliers_json)}
+
+Busca dentro del JSON de proveedores el proveedor que coincida con el nombre de la factura y devuelve los campos clave en formato JSON.
 """
-
-
+    
     return system_prompt, user_prompt
 
 
+def get_invoice_text_parser_prompt(invoice_text):
+    """
+    Genera un prompt para que el agente de OpenAI extraiga los campos clave de una factura
+    desde el texto OCR.
+    """
+    system_prompt = (
+        "Eres un asistente experto en facturación. Recibirás el texto completo de una factura y "
+        "debes extraer los siguientes campos para generar un JSON válido para SAP:\n"
+        "- SupplierInvoiceIDByInvcgParty (Número de factura)\n"
+        "- SupplierName (Nombre del proveedor)\n"
+        "- SupplierTaxNumber (NIT del proveedor)\n"
+        "- DocumentDate\n"
+        "- InvoiceGrossAmount\n"
+        "- CustomerName\n"
+        "- CustomerCode\n"
+        "- Items: Lista de productos con ProductCode, Quantity, Description, UnitPrice, Discount, Subtotal\n"
+        "Devuelve solo el JSON, sin texto adicional."
+    )
 
+    user_prompt = f"Texto de la factura:\n{invoice_text}\nExtrae los datos solicitados en formato JSON."
+
+    return system_prompt, user_prompt
 
