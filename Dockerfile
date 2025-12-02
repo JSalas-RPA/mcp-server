@@ -1,21 +1,20 @@
-# Imagen base
 FROM python:3.11-slim
 
-# Directorio de trabajo
 WORKDIR /app
 
-# Copiar archivos del proyecto
-COPY . .
-
-# Instalar dependencias del sistema (para PDFs)
+# Instalar dependencias primero (mejor práctica)
+COPY requirements.txt .
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     && rm -rf /var/lib/apt/lists/*
-
-# Instalar dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 7000
+# Copiar el resto después
+COPY . .
 
-# Comando de inicio
-CMD ["python", "server.py"]
+# Exponer el puerto (esto es solo documentación)
+EXPOSE 8080
+
+# Usar gunicorn si es una app web (recomendado para producción)
+# Asegúrate de tener gunicorn en requirements.txt 
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "server:app"]
