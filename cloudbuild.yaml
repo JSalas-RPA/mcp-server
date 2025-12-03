@@ -1,0 +1,10 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '--no-cache', 
+      '-t', 'gcr.io/$PROJECT_ID/mcp-server:$SHORT_SHA', 
+      '.'
+    ]
+images:
+  - 'gcr.io/$PROJECT_ID/mcp-server:$SHORT_SHA'
