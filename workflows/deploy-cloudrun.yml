@@ -1,0 +1,43 @@
+name: Deploy MCP Server to Cloud Run
+
+on:
+  push:
+    branches:
+      - main  # Cambia a la rama que uses para deploy
+
+env:
+  GCP_PROJECT_ID: datec-d4g-adn
+  GCP_REGION: europe-west1
+  SERVICE_NAME: mcp-server
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.datecKeyCredentials }}
+
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker
+
+      - name: Build Docker image
+        run: |
+          docker build --no-cache -t gcr.io/$GCP_PROJECT_ID/$SERVICE_NAME:${{ github.sha }} .
+          docker push gcr.io/$GCP_PROJECT_ID/$SERVICE_NAME:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v1
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          image: gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          region: ${{ env.GCP_REGION }}
+          allow-unauthenticated: true
+          env_vars: |
+            datecKeyCredentials=${{ secrets.datecKeyCredentials }}
+            API_OPENAI_KEY=${{ secrets.API_OPENAI_KEY }}
