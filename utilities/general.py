@@ -6,7 +6,7 @@ from google.cloud import vision_v1
 from PIL import Image
 
 # -----------------------------
-# Configuración de credenciales
+# Configuración de credenciale
 # -----------------------------
 # Leer el contenido del secret desde la variable de entorno
 gcp_key_json = os.getenv("datecKeyCredentials")
