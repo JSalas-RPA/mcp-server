@@ -15,6 +15,5 @@ COPY . .
 # Exponer el puerto (esto es solo documentación)
 EXPOSE 8080
 
-# Usar gunicorn si es una app web (recomendado para producción)
-# Asegúrate de tener gunicorn en requirements.txt 
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "server:app"]
+# Opción 2: Ejecutar el script directamente (Más simple, pero menos robusto)
+CMD ["python", "server.py"]
