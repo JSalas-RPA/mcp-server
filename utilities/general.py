@@ -1,27 +1,51 @@
-import re, os, io
+import re, os, io, tempfile
 from openai import OpenAI
 from llama_parse import LlamaParse
 from pdf2image import convert_from_path
 from google.cloud import vision_v1
 from PIL import Image
 
+# -----------------------------
+# Configuración de credenciales
+# -----------------------------
+# Leer el contenido del secret desde la variable de entorno
+gcp_key_json = os.getenv("datecKeyCredentials")
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "datecKeyCredentials"
+if not gcp_key_json:
+    raise EnvironmentError("No se encontró la variable de entorno 'datecKeyCredentials'")
 
+# Crear un archivo temporal para Google Cloud SDK
+with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as temp_file:
+    temp_file.write(gcp_key_json)
+    temp_file.flush()
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_file.name
+
+# -----------------------------
+# Clientes y parsers
+# -----------------------------
 openai_client = OpenAI(api_key=os.getenv("API_OPENAI_KEY"))
 
+parser = LlamaParse(
+    api_key="llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
+    result_type="text",
+    premium_mode=True
+)
 
-parser = LlamaParse(api_key= "llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
-                    result_type="text",
-                    premium_mode=True)
-
+# -----------------------------
+# Funciones
+# -----------------------------
 def get_transcript_document(path_doc):
-    parser_ci = LlamaParse(api_key= "llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi", result_type="markdown", premium_mode=True)
+    parser_ci = LlamaParse(
+        api_key="llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
+        result_type="markdown",
+        premium_mode=True
+    )
     documents = parser_ci.load_data(path_doc)
     text = ""
     for doc in documents:
         text += f"\n {doc.text} \n"
     return text
+
 
 def get_transcript_document_cloud_vision(path_doc):
     client = vision_v1.ImageAnnotatorClient()
@@ -54,6 +78,7 @@ def get_openai_answer(system_prompt, user_prompt):
         ],
     )
     return respuesta.choices[0].message.content.strip()
+
 
 def get_clean_json(text):
     return re.search(r'(\{.*\})', text, re.DOTALL).group(1)
