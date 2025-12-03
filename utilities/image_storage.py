@@ -18,7 +18,7 @@ from datetime import timedelta
 # TWILIO_AUTH_TOKEN = config['twilio']['auth_token']
 
 # # Configurar cliente de GCS
-BUCKET_NAME = os.getenv("BUCKET_NAME", "mcp-facturas-bucket")
+BUCKET_NAME = os.getenv("BUCKET_NAME", "rpa_facturacion")
 storage_client = storage.Client()
 bucket = storage_client.bucket(BUCKET_NAME)
 EASYCONTACT_KEY ="3HEfwgZ9EQoRLJrkmCtUf4rY"

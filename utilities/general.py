@@ -6,7 +6,7 @@ from google.cloud import vision_v1
 from PIL import Image
 
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "datec-d4g-adn-a.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "datecKeyCredentials"
 
 openai_client = OpenAI(api_key=os.getenv("API_OPENAI_KEY"))
 
