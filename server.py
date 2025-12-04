@@ -56,7 +56,7 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # JSON ORIGINAL DE FACTURA (tal como lo recibes o lo defines)
 # ============================================================
 
-djson = {
+factura_json = {
     "d": {
         "CompanyCode": "1000",
         "DocumentDate": "2025-11-19T14:30:00",
@@ -91,8 +91,8 @@ djson = {
 # LIMPIEZA — NO ENVIAMOS NUNCA UN JSON CON "d" DOBLE
 # ============================================================
 
-if "d" in djson:
-    djson = djson["d"]   # <-- aquí queda limpio para SAP
+if "d" in factura_json:
+    factura_json = factura_json["d"]   # <-- aquí queda limpio para SAP
 
 # ============================================================
 # TOOL FINAL (NO SE MODIFICA NADA INTERNO)
@@ -103,9 +103,11 @@ def tool_prueba(nombre: str) -> str:
     """
     Tool de prueba que envía la factura a SAP y retorna el resultado.
     """
+    logger.info(f"FACTURA RECIBIDA EN LA FUNCIÓN: {type(factura_json)}")
+
 
     # Enviar JSON limpio a SAP
-    respuesta_sap = enviar_factura_a_sap_service(djson)
+    respuesta_sap = enviar_factura_a_sap_service(factura_json)
 
     if not respuesta_sap:
         return {"status": "error", "mensaje": "No se pudo crear la factura en SAP"}
