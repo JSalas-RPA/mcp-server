@@ -53,6 +53,7 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # 4. TOOL: Tool de prueba para testing
 # ------------------------------
 djson={
+  "d": {
     "CompanyCode": "1000",
     "DocumentDate": "2025-11-19T14:30:00",
     "PostingDate": "2025-11-19T14:30:00",
@@ -61,7 +62,7 @@ djson={
     "DocumentCurrency": "BOB",
     "InvoiceGrossAmount": "1600.0",
     "DueCalculationBaseDate": "2025-11-19T14:30:00",
-    "TaxIsCalculatedAutomatically": True,
+    "TaxIsCalculatedAutomatically": true,
     "TaxDeterminationDate": "2025-11-19T14:30:00",
     "SupplierInvoiceStatus": "A",
     "to_SuplrInvcItemPurOrdRef": {
@@ -79,6 +80,7 @@ djson={
       ]
     }
   }
+}
 
 if "d" in djson:
     djson = djson["d"]
