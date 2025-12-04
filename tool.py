@@ -318,6 +318,7 @@ def construir_json_factura_sap(factura_datos, proveedor_info, oc_items):
 def enviar_factura_a_sap_service(factura_json):
     """Envía la factura a SAP usando token CSRF y sesión persistente."""
     session, token = obtener_sesion_con_token()
+    
     if not session or not token:
         logger.error("No se pudo obtener sesión con token válido para SAP")
         return None
@@ -328,7 +329,7 @@ def enviar_factura_a_sap_service(factura_json):
             "Content-Type": "application/json",
             "x-csrf-token": token
         }
-        
+        logger.info(f"FACTURA RECIBIDA EN LA FUNCIÓN: {type(factura_json)}")
         logger.info("Enviando factura a SAP")
         
         response = session.post(
