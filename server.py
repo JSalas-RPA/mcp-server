@@ -52,19 +52,41 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # ------------------------------
 # 4. TOOL: Tool de prueba para testing
 # ------------------------------
-
 @mcp.tool()
-def tool_prueba(nombre: str) -> str:
+def tool_prueba(nombre: str, factura: dict) -> dict:
     """
-    Tool de prueba que devuelve un mensaje simple.
+    Tool que envía una factura a SAP y retorna el ID generado.
     
-    Parámetro:
-        nombre: nombre de prueba
+    Parámetros:
+        nombre: nombre de quien envía
+        factura: JSON de la factura
     Retorna:
-        string con saludo
+        Diccionario con el ID de SAP y mensaje
     """
-    enviar_factura_a_sap_service(data)
-    return f"Se cargo factura enviada por: {nombre}"
+    respuesta_sap = enviar_factura_a_sap_service(factura)
+    
+    if not respuesta_sap:
+        return {
+            "status": "error",
+            "mensaje": "No se pudo crear la factura en SAP"
+        }
+    
+    # El identificador suele estar en respuesta_sap["d"]["ObjectId"] o "InvoiceId"
+    sap_d = respuesta_sap.get("d", {})
+    
+    invoice_id = (
+        sap_d.get("ObjectId")
+        or sap_d.get("InvoiceId")
+        or sap_d.get("PurchasingDocument")
+        or sap_d.get("Id")
+    )
+
+    return {
+        "status": "success",
+        "enviado_por": nombre,
+        "invoice_id": invoice_id,
+        "raw_response": sap_d  # opcional, útil para depuración
+    }
 
 
 
