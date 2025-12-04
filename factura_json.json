@@ -1,0 +1,29 @@
+{
+  "d": {
+    "CompanyCode": "1000",
+    "DocumentDate": "2025-11-19T14:30:00",
+    "PostingDate": "2025-11-19T14:30:00",
+    "SupplierInvoiceIDByInvcgParty": "2297",
+    "InvoicingParty": "1000120",
+    "DocumentCurrency": "BOB",
+    "InvoiceGrossAmount": "1600.0",
+    "DueCalculationBaseDate": "2025-11-19T14:30:00",
+    "TaxIsCalculatedAutomatically": true,
+    "TaxDeterminationDate": "2025-11-19T14:30:00",
+    "SupplierInvoiceStatus": "A",
+    "to_SuplrInvcItemPurOrdRef": {
+      "results": [
+        {
+          "SupplierInvoiceItem": "00001",
+          "PurchaseOrder": "4500000000",
+          "PurchaseOrderItem": "00010",
+          "DocumentCurrency": "BOB",
+          "QuantityInPurchaseOrderUnit": "1.000",
+          "PurchaseOrderQuantityUnit": "EA",
+          "SupplierInvoiceItemAmount": "1600.0",
+          "TaxCode": "V0"
+        }
+      ]
+    }
+  }
+}
