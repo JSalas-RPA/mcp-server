@@ -8,7 +8,7 @@ on:
 env:
   GCP_PROJECT_ID: datec-d4g-adn
   GCP_REGION: europe-west1
-  SERVICE_NAME: mcp-server
+  SERVICE_NAME: cloud-run-source-deploy
 
 jobs:
   build-and-deploy:

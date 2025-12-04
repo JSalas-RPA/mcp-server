@@ -64,7 +64,7 @@ def tool_prueba(nombre: str) -> str:
         string con saludo
     """
     enviar_factura_a_sap_service(data)
-    return f"Hola {nombre}, esta es una respuesta de prueba desde MCP Server!"
+    return f"Se cargo factura enviada por: {nombre}"
 
 
 
