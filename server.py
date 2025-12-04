@@ -52,53 +52,65 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # ------------------------------
 # 4. TOOL: Tool de prueba para testing
 # ------------------------------
-djson={
-  "d": {
-    "CompanyCode": "1000",
-    "DocumentDate": "2025-11-19T14:30:00",
-    "PostingDate": "2025-11-19T14:30:00",
-    "SupplierInvoiceIDByInvcgParty": "2297",
-    "InvoicingParty": "1000120",
-    "DocumentCurrency": "BOB",
-    "InvoiceGrossAmount": "1600.0",
-    "DueCalculationBaseDate": "2025-11-19T14:30:00",
-    "TaxIsCalculatedAutomatically": true,
-    "TaxDeterminationDate": "2025-11-19T14:30:00",
-    "SupplierInvoiceStatus": "A",
-    "to_SuplrInvcItemPurOrdRef": {
-      "results": [
-        {
-          "SupplierInvoiceItem": "00001",
-          "PurchaseOrder": "4500000000",
-          "PurchaseOrderItem": "00010",
-          "DocumentCurrency": "BOB",
-          "QuantityInPurchaseOrderUnit": "1.000",
-          "PurchaseOrderQuantityUnit": "EA",
-          "SupplierInvoiceItemAmount": "1600.0",
-          "TaxCode": "V0"
+# ============================================================
+# JSON ORIGINAL DE FACTURA (tal como lo recibes o lo defines)
+# ============================================================
+
+djson = {
+    "d": {
+        "CompanyCode": "1000",
+        "DocumentDate": "2025-11-19T14:30:00",
+        "PostingDate": "2025-11-19T14:30:00",
+        "SupplierInvoiceIDByInvcgParty": "2297",
+        "InvoicingParty": "1000120",
+        "DocumentCurrency": "BOB",
+        "InvoiceGrossAmount": "1600.0",
+        "DueCalculationBaseDate": "2025-11-19T14:30:00",
+        "TaxIsCalculatedAutomatically": True,
+        "TaxDeterminationDate": "2025-11-19T14:30:00",
+        "SupplierInvoiceStatus": "A",
+
+        "to_SuplrInvcItemPurOrdRef": {
+            "results": [
+                {
+                    "SupplierInvoiceItem": "00001",
+                    "PurchaseOrder": "4500000000",
+                    "PurchaseOrderItem": "00010",
+                    "DocumentCurrency": "BOB",
+                    "QuantityInPurchaseOrderUnit": "1.000",
+                    "PurchaseOrderQuantityUnit": "EA",
+                    "SupplierInvoiceItemAmount": "1600.0",
+                    "TaxCode": "V0"
+                }
+            ]
         }
-      ]
     }
-  }
 }
 
+# ============================================================
+# LIMPIEZA — NO ENVIAMOS NUNCA UN JSON CON "d" DOBLE
+# ============================================================
+
 if "d" in djson:
-    djson = djson["d"]
+    djson = djson["d"]   # <-- aquí queda limpio para SAP
+
+# ============================================================
+# TOOL FINAL (NO SE MODIFICA NADA INTERNO)
+# ============================================================
+
 @mcp.tool()
 def tool_prueba(nombre: str) -> str:
     """
-    Tool de prueba que devuelve un mensaje simple.
-    
-    Parámetro:
-        nombre: nombre de prueba
-    Retorna:
-        string con saludo
+    Tool de prueba que envía la factura a SAP y retorna el resultado.
     """
+
+    # Enviar JSON limpio a SAP
     respuesta_sap = enviar_factura_a_sap_service(djson)
+
     if not respuesta_sap:
         return {"status": "error", "mensaje": "No se pudo crear la factura en SAP"}
 
-    # Acceder al objeto 'd' donde realmente están los datos
+    # SAP devuelve la respuesta dentro de "d"
     datos = respuesta_sap.get("d", {})
 
     invoice_id = datos.get("SupplierInvoice")
@@ -119,6 +131,7 @@ def tool_prueba(nombre: str) -> str:
         print("Internal ID:", internal_id)
 
     return resultado
+
 
 
 # ------------------------------
