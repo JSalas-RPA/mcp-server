@@ -62,7 +62,7 @@ factura_json={
     "DocumentCurrency": "BOB",
     "InvoiceGrossAmount": "1600.0",
     "DueCalculationBaseDate": "2025-11-19T14:30:00",
-    "TaxIsCalculatedAutomatically": true,
+    "TaxIsCalculatedAutomatically": "true",
     "TaxDeterminationDate": "2025-11-19T14:30:00",
     "SupplierInvoiceStatus": "A",
     "to_SuplrInvcItemPurOrdRef": {
