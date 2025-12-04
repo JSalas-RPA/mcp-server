@@ -97,6 +97,7 @@ if "d" in factura_json:
 # ============================================================
 # TOOL FINAL (NO SE MODIFICA NADA INTERNO)
 # ============================================================
+debug = True   # o False si no se quieres ver los prints
 
 @mcp.tool()
 def tool_prueba(nombre: str) -> str:
