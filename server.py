@@ -69,7 +69,6 @@ factura_json = {
         "TaxIsCalculatedAutomatically": True,
         "TaxDeterminationDate": "2025-11-19T14:30:00",
         "SupplierInvoiceStatus": "A",
-
         "to_SuplrInvcItemPurOrdRef": {
             "results": [
                 {
@@ -92,24 +91,24 @@ factura_json = {
 # ============================================================
 
 if "d" in factura_json:
-    factura_json = factura_json["d"]   # <-- aquí queda limpio para SAP
+    factura_json = factura_json["d"]   # <-- JSON limpio para SAP
 
 # ============================================================
 # TOOL FINAL (NO SE MODIFICA NADA INTERNO)
 # ============================================================
 
 @mcp.tool()
-def tool_prueba(nombre: str) -> str:
+def tool_prueba(nombre: str) -> dict:
     """
     Tool de prueba que envía la factura a SAP y retorna el resultado.
     """
     logger.info(f"FACTURA RECIBIDA EN LA FUNCIÓN: {type(factura_json)}")
 
-
     # Enviar JSON limpio a SAP
     respuesta_sap = enviar_factura_a_sap_service(factura_json)
 
     if not respuesta_sap:
+        logger.error("No se pudo crear la factura en SAP")
         return {"status": "error", "mensaje": "No se pudo crear la factura en SAP"}
 
     # SAP devuelve la respuesta dentro de "d"
@@ -127,10 +126,10 @@ def tool_prueba(nombre: str) -> str:
         "internal_id": internal_id,
     }
 
-    logger.debug(f"Invoice ID: {invoice_id}, Fiscal Year: {fiscal_year}, Internal ID: {internal_id}")
+    # Logging de los valores devueltos
+    logger.info(f"Invoice ID: {invoice_id}, Fiscal Year: {fiscal_year}, Internal ID: {internal_id}")
 
     return resultado
-
 
 
 # ------------------------------
