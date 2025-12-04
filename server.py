@@ -52,18 +52,18 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # ------------------------------
 # 4. TOOL: Tool de prueba para testing
 # ------------------------------
+
 @mcp.tool()
-def tool_prueba(nombre: str, factura: dict) -> dict:
+def tool_prueba(nombre: str) -> str:
     """
-    Tool que envía una factura a SAP y retorna el ID generado.
+    Tool de prueba que devuelve un mensaje simple.
     
-    Parámetros:
-        nombre: nombre de quien envía
-        factura: JSON de la factura
+    Parámetro:
+        nombre: nombre de prueba
     Retorna:
-        Diccionario con el ID de SAP y mensaje
+        string con saludo
     """
-    respuesta_sap = enviar_factura_a_sap_service(factura)
+    respuesta_sap = enviar_factura_a_sap_service(data)
     
     if not respuesta_sap:
         return {
