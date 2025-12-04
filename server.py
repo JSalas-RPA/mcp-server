@@ -52,7 +52,7 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # ------------------------------
 # 4. TOOL: Tool de prueba para testing
 # ------------------------------
-with open("s.json", "r", encoding="utf-8") as f:
+with open("factura_json.json", "r", encoding="utf-8") as f:
     factura_json = json.load(f)
 
 if "d" in factura_json:
