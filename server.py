@@ -52,11 +52,35 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # ------------------------------
 # 4. TOOL: Tool de prueba para testing
 # ------------------------------
-with open("factura_json.json", "r", encoding="utf-8") as f:
-    factura_json = json.load(f)
-
-if "d" in factura_json:
-    factura_json = factura_json["d"]
+factura_json={
+  "d": {
+    "CompanyCode": "1000",
+    "DocumentDate": "2025-11-19T14:30:00",
+    "PostingDate": "2025-11-19T14:30:00",
+    "SupplierInvoiceIDByInvcgParty": "2297",
+    "InvoicingParty": "1000120",
+    "DocumentCurrency": "BOB",
+    "InvoiceGrossAmount": "1600.0",
+    "DueCalculationBaseDate": "2025-11-19T14:30:00",
+    "TaxIsCalculatedAutomatically": true,
+    "TaxDeterminationDate": "2025-11-19T14:30:00",
+    "SupplierInvoiceStatus": "A",
+    "to_SuplrInvcItemPurOrdRef": {
+      "results": [
+        {
+          "SupplierInvoiceItem": "00001",
+          "PurchaseOrder": "4500000000",
+          "PurchaseOrderItem": "00010",
+          "DocumentCurrency": "BOB",
+          "QuantityInPurchaseOrderUnit": "1.000",
+          "PurchaseOrderQuantityUnit": "EA",
+          "SupplierInvoiceItemAmount": "1600.0",
+          "TaxCode": "V0"
+        }
+      ]
+    }
+  }
+}
 @mcp.tool()
 def tool_prueba(nombre: str) -> str:
     """
