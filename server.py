@@ -97,7 +97,6 @@ if "d" in factura_json:
 # ============================================================
 # TOOL FINAL (NO SE MODIFICA NADA INTERNO)
 # ============================================================
-debug = True   # o False si no se quieres ver los prints
 
 @mcp.tool()
 def tool_prueba(nombre: str) -> str:
@@ -128,10 +127,7 @@ def tool_prueba(nombre: str) -> str:
         "internal_id": internal_id,
     }
 
-    if debug:
-        print("Invoice ID:", invoice_id)
-        print("Fiscal Year:", fiscal_year)
-        print("Internal ID:", internal_id)
+    logger.debug(f"Invoice ID: {invoice_id}, Fiscal Year: {fiscal_year}, Internal ID: {internal_id}")
 
     return resultado
 
