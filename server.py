@@ -92,7 +92,7 @@ def tool_prueba(nombre: str) -> str:
     Retorna:
         string con saludo
     """
-    respuesta_sap = enviar_factura_a_sap_service(factura_json)
+    respuesta_sap = enviar_factura_a_sap_service(djson)
     if not respuesta_sap:
         return {"status": "error", "mensaje": "No se pudo crear la factura en SAP"}
 
