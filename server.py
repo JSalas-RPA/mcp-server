@@ -4,11 +4,13 @@ import asyncio
 import logging
 import os
 from fastmcp import FastMCP
-from tool import validar_factura_tool, enviar_factura_a_sap_tool
+from tool import enviar_factura_a_sap_service, validar_factura_tool, enviar_factura_a_sap_tool
 from utilities.image_storage import upload_image_to_gcs
-
+import json
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
+
+data = "factura_json.json"
 
 # Crear servidor MCP
 mcp = FastMCP("MCP Server S4HANA Tools")
@@ -50,6 +52,7 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # ------------------------------
 # 4. TOOL: Tool de prueba para testing
 # ------------------------------
+
 @mcp.tool()
 def tool_prueba(nombre: str) -> str:
     """
@@ -60,6 +63,7 @@ def tool_prueba(nombre: str) -> str:
     Retorna:
         string con saludo
     """
+    enviar_factura_a_sap_service(data)
     return f"Hola {nombre}, esta es una respuesta de prueba desde MCP Server!"
 
 
