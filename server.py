@@ -10,7 +10,7 @@ import json
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
 
-data = "factura_json.json"
+
 
 # Crear servidor MCP
 mcp = FastMCP("MCP Server S4HANA Tools")
@@ -52,7 +52,11 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # ------------------------------
 # 4. TOOL: Tool de prueba para testing
 # ------------------------------
+with open("s.json", "r", encoding="utf-8") as f:
+    factura_json = json.load(f)
 
+if "d" in factura_json:
+    factura_json = factura_json["d"]
 @mcp.tool()
 def tool_prueba(nombre: str) -> str:
     """
@@ -63,31 +67,31 @@ def tool_prueba(nombre: str) -> str:
     Retorna:
         string con saludo
     """
-    respuesta_sap = enviar_factura_a_sap_service(data)
-    
+    respuesta_sap = enviar_factura_a_sap_service(factura_json)
     if not respuesta_sap:
-        return {
-            "status": "error",
-            "mensaje": "No se pudo crear la factura en SAP"
-        }
-    
-    # El identificador suele estar en respuesta_sap["d"]["ObjectId"] o "InvoiceId"
-    sap_d = respuesta_sap.get("d", {})
-    
-    invoice_id = (
-        sap_d.get("ObjectId")
-        or sap_d.get("InvoiceId")
-        or sap_d.get("PurchasingDocument")
-        or sap_d.get("Id")
-    )
+        return {"status": "error", "mensaje": "No se pudo crear la factura en SAP"}
 
-    return {
+    # Acceder al objeto 'd' donde realmente están los datos
+    datos = respuesta_sap.get("d", {})
+
+    invoice_id = datos.get("SupplierInvoice")
+    fiscal_year = datos.get("FiscalYear")
+    internal_id = datos.get("SupplierInvoiceIDByInvcgParty")
+
+    resultado = {
         "status": "success",
-        "enviado_por": nombre,
+        "enviado_por": "andy",
         "invoice_id": invoice_id,
-        "raw_response": sap_d  # opcional, útil para depuración
+        "fiscal_year": fiscal_year,
+        "internal_id": internal_id,
     }
 
+    if debug:
+        print("Invoice ID:", invoice_id)
+        print("Fiscal Year:", fiscal_year)
+        print("Internal ID:", internal_id)
+
+    return resultado
 
 
 # ------------------------------
