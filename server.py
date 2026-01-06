@@ -56,34 +56,35 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 # JSON ORIGINAL DE FACTURA (tal como lo recibes o lo defines)
 # ============================================================
 
-factura_json = {
-    "d": {
-        "CompanyCode": "1000",
-        "DocumentDate": "2025-11-19T14:30:00",
-        "PostingDate": "2025-11-19T14:30:00",
-        "SupplierInvoiceIDByInvcgParty": "2297",
-        "InvoicingParty": "1000120",
-        "DocumentCurrency": "BOB",
-        "InvoiceGrossAmount": "1600.0",
-        "DueCalculationBaseDate": "2025-11-19T14:30:00",
-        "TaxIsCalculatedAutomatically": True,
-        "TaxDeterminationDate": "2025-11-19T14:30:00",
-        "SupplierInvoiceStatus": "A",
-        "to_SuplrInvcItemPurOrdRef": {
-            "results": [
-                {
-                    "SupplierInvoiceItem": "00001",
-                    "PurchaseOrder": "4500000000",
-                    "PurchaseOrderItem": "00010",
-                    "DocumentCurrency": "BOB",
-                    "QuantityInPurchaseOrderUnit": "1.000",
-                    "PurchaseOrderQuantityUnit": "EA",
-                    "SupplierInvoiceItemAmount": "1600.0",
-                    "TaxCode": "V0"
-                }
-            ]
+factura_json ={
+  "d": {
+    "CompanyCode": "1000",
+    "DocumentDate": "2025-12-19T14:30:00",
+    "PostingDate": "2025-12-19T14:30:00",
+    "SupplierInvoiceIDByInvcgParty": "6057461",
+    "InvoicingParty": "1000120",
+    "DocumentCurrency": "BOB",
+    "InvoiceGrossAmount": "2500",
+    "DueCalculationBaseDate": "2025-12-19T14:30:00",
+    "TaxIsCalculatedAutomatically": true,
+    "TaxDeterminationDate": "2025-12-19T14:30:00",
+    "SupplierInvoiceStatus": "B",
+    "AssignmentReference":"457C61867FDA3181EB27427E6424E12AFE239D71A659E33B858A12G47",
+    "to_SuplrInvcItemPurOrdRef": {
+      "results": [
+        {
+          "SupplierInvoiceItem": "00001",
+          "PurchaseOrder": "4500000000",
+          "PurchaseOrderItem": "00010",
+          "DocumentCurrency": "BOB",
+          "QuantityInPurchaseOrderUnit": "1.000",
+          "PurchaseOrderQuantityUnit": "EA",
+          "SupplierInvoiceItemAmount": "2500",
+          "TaxCode": "V0"
         }
+      ]
     }
+  }
 }
 
 # ============================================================
