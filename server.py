@@ -18,6 +18,7 @@ mcp = FastMCP("MCP Server S4HANA Tools")
 # ------------------------------
 # 1. TOOL: Subir PDF desde EasyContact a GCS
 # ------------------------------
+"""
 @mcp.tool()
 def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
     url = upload_image_to_gcs(user_email, image_url)
@@ -46,7 +47,7 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
     logger.info(f"Tool: 'enviar_factura_a_sap' llamada para el correo={correo_remitente}")
     resultado_sap = enviar_factura_a_sap_tool(datos_factura, correo_remitente)
     return resultado_sap
-
+"""
 
 
 # ------------------------------
