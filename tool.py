@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # Configuración de endpoints SAP desde variables de entorno
 SAP_CONFIG = {
     'username': "BOT_ASSET_CHANGES",
-    'password': "FJyB@~[NkeSenF5WiMj>7=w+>fuFB~R[xDqjcEni",
+    'password': "GG3FUyT~v@e+#e[]+dL%cGaR<sRZf}49twKfMtN$",
     'supplier_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier",
     'purchase_order_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER/A_PurchaseOrder",
     'invoice_post_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice"
