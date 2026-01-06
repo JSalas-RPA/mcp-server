@@ -1,15 +1,15 @@
 {
   "d": {
     "CompanyCode": "1000",
-    "DocumentDate": "2025-11-19T14:30:00",
-    "PostingDate": "2025-11-19T14:30:00",
+    "DocumentDate": "2025-12-19T14:30:00",
+    "PostingDate": "2025-12-19T14:30:00",
     "SupplierInvoiceIDByInvcgParty": "2297",
     "InvoicingParty": "1000120",
     "DocumentCurrency": "BOB",
-    "InvoiceGrossAmount": "1600.0",
-    "DueCalculationBaseDate": "2025-11-19T14:30:00",
+    "InvoiceGrossAmount": "2500",
+    "DueCalculationBaseDate": "2025-12-19T14:30:00",
     "TaxIsCalculatedAutomatically": true,
-    "TaxDeterminationDate": "2025-11-19T14:30:00",
+    "TaxDeterminationDate": "2025-12-19T14:30:00",
     "SupplierInvoiceStatus": "A",
     "to_SuplrInvcItemPurOrdRef": {
       "results": [
@@ -20,7 +20,7 @@
           "DocumentCurrency": "BOB",
           "QuantityInPurchaseOrderUnit": "1.000",
           "PurchaseOrderQuantityUnit": "EA",
-          "SupplierInvoiceItemAmount": "1600.0",
+          "SupplierInvoiceItemAmount": "2500",
           "TaxCode": "V0"
         }
       ]
