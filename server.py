@@ -70,7 +70,7 @@ factura_json ={
     "TaxIsCalculatedAutomatically": True,
     "TaxDeterminationDate": "2025-12-19T14:30:00",
     "SupplierInvoiceStatus": "B",
-    "AssignmentReference":"457C61867FDA3181EB27427E6424E12AFE239D71A659E33B858A12G47",
+    "AssignmentReference":"457C61867FDA31",
     "to_SuplrInvcItemPurOrdRef": {
       "results": [
         {
