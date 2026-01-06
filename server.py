@@ -67,7 +67,7 @@ factura_json ={
     "DocumentCurrency": "BOB",
     "InvoiceGrossAmount": "2500",
     "DueCalculationBaseDate": "2025-12-19T14:30:00",
-    "TaxIsCalculatedAutomatically": true,
+    "TaxIsCalculatedAutomatically": True,
     "TaxDeterminationDate": "2025-12-19T14:30:00",
     "SupplierInvoiceStatus": "B",
     "AssignmentReference":"457C61867FDA3181EB27427E6424E12AFE239D71A659E33B858A12G47",
