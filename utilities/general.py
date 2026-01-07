@@ -8,6 +8,13 @@ from PIL import Image
 # -----------------------------
 # Configuración de credenciale
 # -----------------------------
+# Intentar cargar .env si python-dotenv está instalado
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # carga variables desde .env al entorno
+except Exception:
+    pass
+
 # Leer el contenido del secret desde la variable de entorno
 gcp_key_json = os.getenv("datecKeyCredentials")
 
