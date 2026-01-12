@@ -108,18 +108,18 @@ def process_invoice_with_llm(invoice_text: str, api_key: str):
     return json.loads(response.choices[0].message.content)
 
 # --- EJECUCIÓN DE PRUEBA ---
-if __name__ == "__main__":
-    # 1. Configura tu API Key
-    MY_API_KEY = "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"
-    # 2. Ruta de tu archivo
-    ARCHIVO = "/home/olguin/Downloads/facturas/factura 31220254.pdf"
+# if __name__ == "__main__":
+#     # 1. Configura tu API Key
+#     MY_API_KEY = "API_OPENAI_KEY"
+#     # 2. Ruta de tu archivo
+#     ARCHIVO = "/home/olguin/Downloads/facturas/factura 31220254.pdf"
     
-    print("--- Extrayendo texto ---")
-    texto = extract_text_from_first_page(ARCHIVO)
+#     print("--- Extrayendo texto ---")
+#     texto = extract_text_from_first_page(ARCHIVO)
     
-    if "ERROR" in texto:
-        print(texto)
-    else:
-        print("--- Enviando a LLM ---")
-        resultado = process_invoice_with_llm(texto, MY_API_KEY)
-        print(json.dumps(resultado, indent=4, ensure_ascii=False))
+#     if "ERROR" in texto:
+#         print(texto)
+#     else:
+#         print("--- Enviando a LLM ---")
+#         resultado = process_invoice_with_llm(texto, MY_API_KEY)
+#         print(json.dumps(resultado, indent=4, ensure_ascii=False))
