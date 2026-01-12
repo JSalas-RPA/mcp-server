@@ -1,0 +1,14 @@
+
+        FACTURA N° 2297
+        NIT: 1015537027
+        DATEC LTDA.
+        Fecha: 19/09/2025 02:30 PM
+        NIT/CI/CEX: 678393035
+        Nombre/Razón Social: Mariela Alejandra Soto Roda
+        Cód. Cliente: 678393035
+        PRODUCTO: Toner Negro 15K Pag
+        CANTIDAD: 1.000
+        PRECIO UNITARIO: 1,213.00
+        SUBTOTAL Bs: 1,213.00
+        TOTAL Bs: 1,213.00
+        

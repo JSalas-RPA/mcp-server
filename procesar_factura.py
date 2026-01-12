@@ -30,10 +30,10 @@ logger = logging.getLogger(__name__)
 # Configuración de endpoints SAP - CORREGIDO
 SAP_CONFIG = {
     'username': "BOT_ASSET_CHANGES",
-    'password': "GG3FUyT~v@e+#e[]+dL%cGaR<sRZf}49twKfMtN$",
+    'password': "LXh9=a(7Rk2&dkd3HJkKGu5PnoTC2]bSa6<{@w]+",
     'supplier_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier",
     'purchase_order_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder",  # CORREGIDO
-    'invoice_p  ost_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice"
+    'invoice_post_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice"
 }
 
 # ============================================================================
@@ -206,7 +206,7 @@ def extraer_datos_factura_desde_texto(texto_factura):
             "Emisor": "SupplierName",
             "Proveedor": "SupplierName",
             "Número de factura": "SupplierInvoiceIDByInvcgParty",
-            "Factura": "SupplierInvoiceIDByInvcgParty",
+            "Factura No.": "SupplierInvoiceIDByInvcgParty",
             "No. Factura": "SupplierInvoiceIDByInvcgParty",
             "Fecha de emisión": "DocumentDate",
             "Fecha": "DocumentDate",
@@ -214,9 +214,9 @@ def extraer_datos_factura_desde_texto(texto_factura):
             "Total": "InvoiceGrossAmount",
             "Importe": "InvoiceGrossAmount",
             "Moneda": "DocumentCurrency",
-            "Código de Autorización": "CodigoAutorizacion",
-            "COD. AUTORIZACION": "CodigoAutorizacion",
-            "Autorización": "CodigoAutorizacion",
+            "Código de Autorización": "AssignmentReference",
+            "COD. AUTORIZACION": "AssignmentReference",
+            "Autorización": "AssignmentReference",
             "Números de orden de compra": "PurchaseOrderNumbers",
             "OC": "PurchaseOrderNumbers",
             "Orden de Compra": "PurchaseOrderNumbers",
@@ -604,7 +604,7 @@ def construir_json_factura_sap(factura_datos, proveedor_info, oc_items):
     invoice_amount = factura_datos.get("InvoiceGrossAmount", 0.0)
     invoice_amount_str = f"{invoice_amount:.0f}"
     
-    cod_autorizacion = factura_datos.get("CodigoAutorizacion", "")
+    cod_autorizacion = factura_datos.get("AssignmentReference", "")
     print(f"  Código de Autorización inicial: {cod_autorizacion}")
     cod_autorizacion = cod_autorizacion[:14]
     if not cod_autorizacion:
@@ -729,7 +729,7 @@ def enviar_factura_a_sap(factura_json):
 # FUNCIÓN PRINCIPAL - PUNTO DE ENTRADA ÚNICO
 # ============================================================================
 
-def procesar_factura_completa(texto_factura,path):
+def procesar_factura_completa(texto_factura):
     """
     FUNCIÓN PRINCIPAL - Procesa una factura desde texto OCR hasta carga en SAP.
     COMPLETA: Incluye todos los pasos del flujo.
@@ -990,7 +990,3 @@ if __name__ == "__main__":
         print("   Crea un archivo con el texto de la factura o ajusta la ruta.")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
-        
-        
-        
-    
