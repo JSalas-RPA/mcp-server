@@ -1,5 +1,5 @@
 # tool.py - Módulo de herramientas para procesamiento de facturas SAP
-
+import os
 import json
 import logging
 import requests
@@ -588,6 +588,46 @@ def validar_factura_tool(rutas_bucket: list[str]) -> dict:
         logger.error(error_msg)
         return {"status": "error", "error": str(e)}
 
+
+def extraer_datos_factura(ruta_gcs: str) -> dict:
+    """ 
+    Extrae datos de una factura desde una ruta GCS usando OCR y LLM.
+    """
+    try:
+        logger.info(f"Iniciando extracción de datos de factura desde: {ruta_gcs}")
+        
+        # Descargar PDF temporalmente
+        ruta_temp = download_pdf_to_tempfile(ruta_gcs)
+        logger.info(f"Archivo temporal descargado: {ruta_temp}")
+        
+        # OCR
+        logger.info("Extrayendo texto con Cloud Vision")
+        texto_factura = get_transcript_document_cloud_vision(ruta_temp)
+        logger.info(f"Texto extraído (primeros 2000 caracteres):\n{texto_factura[:2000]}")
+        
+        # Extraer datos usando LLM
+        logger.info("Extrayendo datos de factura usando LLM")
+        datos_factura = extraer_datos_factura_desde_texto(texto_factura)
+        
+        logger.info("Extracción de datos completada exitosamente")
+        return {
+            "status": "success",
+            "data": datos_factura
+        }
+        
+    except Exception as e:
+        error_msg = f"Error al extraer datos de la factura: {str(e)}"
+        logger.error(error_msg)
+        return {"status": "error", "error": str(e)}
+    
+    finally:
+        # Eliminar archivo temporal si existe
+        try:
+            if os.path.exists(ruta_temp):
+                os.remove(ruta_temp)
+                logger.info(f"Archivo temporal eliminado: {ruta_temp}")
+        except Exception as e:
+            logger.warning(f"No se pudo eliminar el archivo temporal: {str(e)}")
 
 def enviar_factura_a_sap_tool(datos_factura: dict, correo_remitente: str) -> dict:
     """
