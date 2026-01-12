@@ -25,15 +25,17 @@ if not gcp_key_json:
 with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as temp_file:
     temp_file.write(gcp_key_json)
     temp_file.flush()
-    os.environ["datecKeyCredentials"] = temp_file.name
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_file.name
 
 # -----------------------------
 # Clientes y parsers
 # -----------------------------
 openai_client = OpenAI(api_key=os.getenv("API_OPENAI_KEY"))
 
+# LlamaParse API key comes from environment to avoid hardcoding secrets.
+llama_api_key = os.getenv("LLAMAPARSE_API_KEY")
 parser = LlamaParse(
-    api_key="llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
+    api_key=llama_api_key,
     result_type="text",
     premium_mode=True
 )
@@ -43,7 +45,7 @@ parser = LlamaParse(
 # -----------------------------
 def get_transcript_document(path_doc):
     parser_ci = LlamaParse(
-        api_key="llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
+        api_key=llama_api_key,
         result_type="markdown",
         premium_mode=True
     )

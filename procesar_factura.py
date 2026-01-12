@@ -4,15 +4,15 @@
 # Date: 2024-06-10
 # Description: Procesamiento de facturas con validación avanzada de proveedores en SAP
 # ============================================================================
+import sys, os, re, logging
 import requests
 import json
-import logging
-import re
 from datetime import datetime
 from difflib import SequenceMatcher
 from requests.auth import HTTPBasicAuth
 from prompts import get_OC_validator_prompt, get_invoice_text_parser_prompt, get_invoice_validator_prompt
-from utilities.general import get_openai_answer
+from utilities.general import get_openai_answer, get_transcript_document_cloud_vision
+from utilities.image_storage import download_pdf_to_tempfile
 
 # ============================================================================
 # CONFIGURACIÓN Y LOGGING
@@ -27,13 +27,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Intentar cargar .env si python-dotenv está instalado
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # carga variables desde .env al entorno
+except Exception:
+    pass
+
 # Configuración de endpoints SAP - CORREGIDO
 SAP_CONFIG = {
-    'username': "BOT_ASSET_CHANGES",
-    'password': "LXh9=a(7Rk2&dkd3HJkKGu5PnoTC2]bSa6<{@w]+",
-    'supplier_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier",
-    'purchase_order_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder",  # CORREGIDO
-    'invoice_post_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice"
+    'username': os.getenv('SAP_USERNAME', ''),
+    'password': os.getenv('SAP_PASSWORD', ''),
+    'supplier_url': os.getenv('SAP_SUPPLIER_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier'),
+    'purchase_order_url': os.getenv('SAP_PURCHASE_ORDER_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder'),
+    'invoice_post_url': os.getenv('SAP_INVOICE_POST_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice')
 }
 
 # ============================================================================
@@ -738,7 +745,7 @@ def procesar_factura_completa(texto_factura):
     print("🚀 INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
     print("="*70)
     
-    logger.info("="*70)
+    logger.info("\n" + "="*70)
     logger.info("INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
     logger.info("="*70)
     
@@ -946,10 +953,27 @@ if __name__ == "__main__":
     print("SISTEMA DE CARGA DE FACTURAS SAP - MODO PRUEBA")
     print("="*70)
     
+    if len(sys.argv) < 2:
+        print("Uso: python scripts/test_ocr.py <ruta_local|url_https|gs://...>")
+        raise SystemExit(1)
+
+    source = sys.argv[1]
+
     try:
         # Leer texto de factura desde archivo (para pruebas)
-        with open("factura_texto.txt", "r", encoding="utf-8") as f:
-            texto_factura = f.read()
+        # with open("factura_texto.txt", "r", encoding="utf-8") as f:
+        #     texto_factura = f.read()
+        
+        logger.info(f"Iniciando extracción de datos de factura desde: {source}")
+        
+        # Descargar PDF temporalmente
+        ruta_temp = download_pdf_to_tempfile(source)
+        logger.info(f"Archivo temporal descargado: {ruta_temp}")
+        
+        # OCR
+        logger.info("Extrayendo texto con Cloud Vision")
+        texto_factura = get_transcript_document_cloud_vision(ruta_temp)
+        logger.info(f"Texto extraído (primeros 2000 caracteres):\n{texto_factura[:2000]}")
         
         # Llamar a la función principal
         resultado = procesar_factura_completa(texto_factura)
