@@ -8,12 +8,13 @@ import requests
 import os
 import json
 import logging
-import re
+import re, dotenv
 from datetime import datetime
 from difflib import SequenceMatcher
 from requests.auth import HTTPBasicAuth
 from prompts import get_OC_validator_prompt, get_invoice_text_parser_prompt, get_invoice_validator_prompt
-from utilities.general import get_openai_answer
+from utilities.general import get_openai_answer, get_transcript_document_cloud_vision
+from utilities.image_storage import download_pdf_to_tempfile
 
 # ============================================================================
 # CONFIGURACIÓN Y LOGGING
@@ -28,13 +29,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Intentar cargar .env si python-dotenv está instalado
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # carga variables desde .env al entorno
+except Exception:
+    pass
+
 # Configuración de endpoints SAP - CORREGIDO
 SAP_CONFIG = {
-    'username': "BOT_ASSET_CHANGES",
-    'password': "GG3FUyT~v@e+#e[]+dL%cGaR<sRZf}49twKfMtN$",
-    'supplier_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier",
-    'purchase_order_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder",  # CORREGIDO
-    'invoice_p  ost_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice"
+    'username': os.getenv('SAP_USERNAME', ''),
+    'password': os.getenv('SAP_PASSWORD', ''),
+    'supplier_url': os.getenv('SAP_SUPPLIER_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier'),
+    'purchase_order_url': os.getenv('SAP_PURCHASE_ORDER_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder'),
+    'invoice_post_url': os.getenv('SAP_INVOICE_POST_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice'),
+    'material_doc_url': os.getenv('SAP_MATERIAL_DOC_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_GOODS_MOVEMENT_SRV/A_MaterialDocument')
 }
 
 # ============================================================================

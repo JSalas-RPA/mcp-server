@@ -19,8 +19,9 @@ import requests
 # # Configurar cliente de GCS
 BUCKET_NAME = os.getenv("BUCKET_NAME", "rpa_facturacion")
 
-EASYCONTACT_KEY ="3HEfwgZ9EQoRLJrkmCtUf4rY"
-ENVIRONMENT = "3HEfwgZ9EQoRLJrkmCtUf4rY"
+# Valores sensibles desde entorno
+EASYCONTACT_KEY = os.getenv("EASYCONTACT_KEY", "3HEfwgZ9EQoRLJrkmCtUf4rY")
+ENVIRONMENT = os.getenv("ENVIRONMENT", EASYCONTACT_KEY)
 
 
 _storage_client = None
