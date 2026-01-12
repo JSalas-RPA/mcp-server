@@ -8,16 +8,7 @@ const CARPETA_DESTINO = "entrada_facturas/";
 // Asegúrate de que todo esté en una sola línea o usar plantillas de cadena (`...`)
 const SERVICE_ACCOUNT_KEY_JSON_STRING = `
 {
-  "type": "service_account",
-  "project_id": "datec-d4g-adn",
-  "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC/yYm4L8lFY5ff\\nwCm8wiEDtC7vV5Ob/NHFsqXmKkz1MzS90BC/F034N1jkMonH+gKxMMJE3XLLML/2\\nT2dTliUsoygIUK6IwHtT8gM5qnX8ROAamThJxZGcyU/Av81y7cL7haXXklz1ynXD\\nYjCorvp0+GNW2gU0Z8XU+bzE/ZIRQsN+ifqN4CrITTuk39iFeC8nIO5lOA9bD4Yy\\nSDPhdfwhU5i0RSqcjY8MLFu3/Ik0Mb81t0+QNgv4UuVyAEBK4HQGlsbTTW4Jq7nC\\nJtiEeoXbeIagWEyfyGdIiJafDb/9+UCwHQLstvMBnG/bdDnwicmO5TDarkM9qAdT\\nNydBowvlAgMBAAECggEAH92TlVfTQEU48cNS6/rxU1U3yyqo6u0JyahSKjjzCnaU\\nl8kfTzDHEqvXiCrhe6mNkvVAAgMtVJdn/bvZtiinSpBdUWxeY3hfxWXbpVQuQFkN\\nRz4X/SHnfL5yEtuLfkIE+JePI489BNW71VfWL+DK2m5+yup0nO11EFriQ3TCNT2x\\n5m6vik7pnhRQQUo0jKvETBRBPJwNI1W0F59kpFHITiJG/C7i12pmoj5tU1NlDu8Z\\nsTzg9Kn9w2FcBpajJczzK6+sjawtJW5sOFEZjVviuxdHoK8wkrynS7kYqeuG7chz\\nxznnxGNJdT1vSSuR32q/8BMGa9/Fgh07md2Ex9YlQQKBgQDj4KhLVKmAtCJNsplM\\n4N5S4PnznVukGQIPAExN/sQ2n8G0qzaTXEOhQKqhaPhulIWjfYXB5aUa3op/be3y\\nU53gdzKNzB8+uCpFZ0qYXljdE4xPCZfoOVRK1oNu/odgR3J0NndmxzxkrrRNBGAM\\n6KN6HzUrUTq1gXEzJwAeM9D4FQKBgQDXdK2oVdCD7Bu78zSEYZ0bBpeDrrLV9e5a\\nFQ4otSVI58EGg3/6ktme4V6dL4Tt+Hc4OqkS0F8XM54MKXvY1DRUfc9IEPeHR0P1\\n7KlgyyM7e9IarCZfUuNP/m+ZTB6gwf2O0OxgBkedDV3onYGdIG3uUhzoeyEYYEva\\neJiWJwZokQKBgBcLzXlw4oOltCJvgZmI1HNFVYIR1AbQkKi7uvvYXDe6CHkhJ6/X\\nkO9p/te8KgPk+W8DbtehRgVlpFQm5f2v/zOIWpCEqFRLg9rpC15FjG8vXu1PZxGR\\nWrkG4NwE2eQe1bBzIbg/RhhYott3Kc+kZ4QeS95JpMpegPhPZW+oheXRAoGBALdd\\nte3uGugrqe7rrWZ9LRgzJAAOTmWKSLCh+srqYDEMDFtezyySjmOJqtxb9OYS8GQK\\niJpafJNiesAfDigbce32pNLQndmj7VL/d6fJOtMFLmtE1+OIx6zs/k2ZWve2IfXK\\nGWIf9hLTrXirlAQF9Yk+mRvCrwfv7J6ixDoGPI4BAoGBALTd92Mx7rsac6EHnOQ6\\nctpm/j/cMmnaxjWRFaH3pHEpARYTEJQs/GvIT92gdZ+NXEdDeud6nfraUYoicdrz\\nOXDtRXA1Jy500WV+Lfn3n93+Nlv8uszLSqayAI4FlF4R+yPn15bF8AbMextXA2ef\\n6UzaZ7JkSEXsyQTh8pKt2Jt2\\n-----END PRIVATE KEY-----\\n",
-  "client_email": "mcp-server-dsuite@datec-d4g-adn.iam.gserviceaccount.com",
-  "client_id": "111173590275359323720",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/mcp-server-dsuite%40datec-d4g-adn.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
+  
 }
 
 `;

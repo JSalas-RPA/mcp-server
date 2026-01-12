@@ -5,7 +5,6 @@ import logging
 import os
 from fastmcp import FastMCP
 from tool import enviar_factura_a_sap_service, validar_factura_tool, enviar_factura_a_sap_tool
-from utilities.image_storage import upload_image_to_gcs
 import json
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
@@ -14,6 +13,7 @@ logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
 
 # Crear servidor MCP
 mcp = FastMCP("MCP Server S4HANA Tools")
+
 
 # ------------------------------
 # 1. TOOL: Subir PDF desde EasyContact a GCS
@@ -28,6 +28,7 @@ def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
         return "Error al subir el archivo."
 
 
+
 # ------------------------------
 # 2. TOOL: Validar Factura
 # ------------------------------
@@ -40,8 +41,9 @@ def validar_factura(rutas_bucket: list[str]) -> dict:
 
 
 # ------------------------------
-# 3. TOOL: Enviar Factura a SAP S/4HANA
+# 3. TOOL: Procesar Factura Json a SAP
 # ------------------------------
+
 @mcp.tool()
 def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
     logger.info(f"Tool: 'enviar_factura_a_sap' llamada para el correo={correo_remitente}")
@@ -51,7 +53,7 @@ def enviar_factura_a_sap(datos_factura: dict, correo_remitente: str) -> dict:
 
 
 # ------------------------------
-# 4. TOOL: Tool de prueba para testing
+# 4. TOOL: Cargar a SAP
 # ------------------------------
 # ============================================================
 # JSON ORIGINAL DE FACTURA (tal como lo recibes o lo defines)

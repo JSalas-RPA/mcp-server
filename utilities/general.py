@@ -18,7 +18,7 @@ if not gcp_key_json:
 with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as temp_file:
     temp_file.write(gcp_key_json)
     temp_file.flush()
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_file.name
+    os.environ["datecKeyCredentials"] = temp_file.name
 
 # -----------------------------
 # Clientes y parsers
