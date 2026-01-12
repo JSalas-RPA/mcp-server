@@ -5,6 +5,7 @@
 # Description: Procesamiento de facturas con validación avanzada de proveedores en SAP
 # ============================================================================
 import requests
+import os
 import json
 import logging
 import re
@@ -387,7 +388,7 @@ def buscar_proveedor_en_sap(factura_datos, proveedores_sap):
                     "TaxNumber": extraer_solo_numeros(str(proveedor.get('TaxNumber1') or proveedor.get('TaxNumber') or "")),
                     "Similitud": similitud,
                     "Metodo": f"Similitud de Nombres ({similitud*100:.1f}%)"
-                })
+                }) 
     
     # ESTRATEGIA 3: Búsqueda por palabras clave
     if not resultados and nombre_buscar:
@@ -454,7 +455,7 @@ def buscar_proveedor_en_sap(factura_datos, proveedores_sap):
     if proveedor_ai:
         proveedor_ai["MetodoBusqueda"] = "AI (OpenAI)"
         proveedor_ai["Similitud"] = 0.0
-        return proveedor_ai
+        return proveedor_ai 
     
     return None
 
@@ -558,12 +559,12 @@ def obtener_ordenes_compra_proveedor(descripcion_factura, monto_factura, supplie
                     else:
                         print(f"  ⚠️  IA no pudo identificar una OC específica")
                         logger.warning(f"IA no pudo identificar una OC específica para proveedor {supplier_code}")
-                        return []
+                        return [] 
                 else:
                     print(f"  ⚠️  No se encontraron órdenes de compra para el proveedor {supplier_code}")
-                    logger.warning(f"ℹ️ No se encontraron órdenes de compra para el proveedor {supplier_code}")
+                    logger.warning(f"ℹ️ No se encontraron órdenes de compra para el proveedor {supplier_code}") 
             else:
-                print(f"  ⚠️  No se encontraron datos en la respuesta")
+                print(f"  ⚠️  No se encontraron datos en la respuesta") 
                 logger.warning("No se encontraron datos de órdenes de compra en la respuesta")
         elif response.status_code == 403:
             print(f"  ❌ ERROR 403: Permisos insuficientes")
@@ -593,9 +594,9 @@ def construir_json_factura_sap(factura_datos, proveedor_info, oc_items):
     if not proveedor_info:
         raise ValueError("Información del proveedor no disponible")
     
-    fecha_documento = format_sap_date(factura_datos.get("DocumentDate"))
-    
+    fecha_documento = format_sap_date(factura_datos.get("DocumentDate"))    
     invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
+    
     if not invoice_id or invoice_id == "0":
         print("  ⚠️  No se encontró ID de factura, generando automático...")
         logger.warning("No se encontró ID de factura, generando automático")
@@ -933,6 +934,46 @@ def procesar_factura_completa(texto_factura,path):
         resultado['message'] = "Error en el procesamiento de la factura"
         
         return resultado
+
+def extraer_datos_factura(ruta_gcs: str) -> dict:
+    """ 
+    Extrae datos de una factura desde una ruta GCS usando OCR y LLM.
+    """
+    try:
+        logger.info(f"Iniciando extracción de datos de factura desde: {ruta_gcs}")
+        
+        # Descargar PDF temporalmente
+        ruta_temp = download_pdf_to_tempfile(ruta_gcs)
+        logger.info(f"Archivo temporal descargado: {ruta_temp}")
+        
+        # OCR
+        logger.info("Extrayendo texto con Cloud Vision")
+        texto_factura = get_transcript_document_cloud_vision(ruta_temp)
+        logger.info(f"Texto extraído (primeros 2000 caracteres):\n{texto_factura[:2000]}")
+        
+        # Extraer datos usando LLM
+        logger.info("Extrayendo datos de factura usando LLM")
+        datos_factura = extraer_datos_factura_desde_texto(texto_factura)
+        
+        logger.info("Extracción de datos completada exitosamente")
+        return {
+            "status": "success",
+            "data": datos_factura
+        }
+        
+    except Exception as e:
+        error_msg = f"Error al extraer datos de la factura: {str(e)}"
+        logger.error(error_msg)
+        return {"status": "error", "error": str(e)}
+    
+    finally:
+        # Eliminar archivo temporal si existe
+        try:
+            if os.path.exists(ruta_temp):
+                os.remove(ruta_temp)
+                logger.info(f"Archivo temporal eliminado: {ruta_temp}")
+        except Exception as e:
+            logger.warning(f"No se pudo eliminar el archivo temporal: {str(e)}")
 
 # ============================================================================
 # PUNTO DE ENTRADA PARA PRUEBAS LOCALES

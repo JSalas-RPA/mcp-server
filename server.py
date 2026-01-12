@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 from fastmcp import FastMCP
-from tool import enviar_factura_a_sap_service, validar_factura_tool, enviar_factura_a_sap_tool
+from tool import enviar_factura_a_sap_service, extraer_datos_factura, enviar_factura_a_sap_tool
 import json
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
@@ -36,6 +36,16 @@ def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
 def validar_factura(rutas_bucket: list[str]) -> dict:
     logger.info(f"Tool: 'validar_factura' called with rutas_bucket={rutas_bucket}")
     resultado = validar_factura_tool(rutas_bucket)
+    logger.info(f"Resultado: {resultado}")
+    return resultado
+
+# ------------------------------
+# 2.5 TOOL: Extraer datos de factura
+# ------------------------------
+@mcp.tool()
+def extraer_datos(ruta_gcs: str) -> dict:
+    logger.info(f"Tool: 'extraer_datos_factura' called with ruta_gcs={ruta_gcs}")
+    resultado = extraer_datos_factura(ruta_gcs)
     logger.info(f"Resultado: {resultado}")
     return resultado
 
