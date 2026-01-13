@@ -205,39 +205,9 @@ def extraer_datos_factura_desde_texto(texto_factura):
             print(f"  {key}: {value}")
         print("="*70)
         
-        mapeo_campos = {
-            "NIT/Número de identificación tributaria": "SupplierTaxNumber",
-            "NIT": "SupplierTaxNumber",
-            "RUC": "SupplierTaxNumber",
-            "Número de identificación tributaria": "SupplierTaxNumber",
-            "Nombre legal del emisor": "SupplierName",
-            "Emisor": "SupplierName",
-            "Proveedor": "SupplierName",
-            "Número de factura": "SupplierInvoiceIDByInvcgParty",
-            "Factura No.": "SupplierInvoiceIDByInvcgParty",
-            "No. Factura": "SupplierInvoiceIDByInvcgParty",
-            "Fecha de emisión": "DocumentDate",
-            "Fecha": "DocumentDate",
-            "Monto total": "InvoiceGrossAmount",
-            "Total": "InvoiceGrossAmount",
-            "Importe": "InvoiceGrossAmount",
-            "Moneda": "DocumentCurrency",
-            "Código de Autorización": "AssignmentReference",
-            "COD. AUTORIZACION": "AssignmentReference",
-            "Autorización": "AssignmentReference",
-            "Números de orden de compra": "PurchaseOrderNumbers",
-            "OC": "PurchaseOrderNumbers",
-            "Orden de Compra": "PurchaseOrderNumbers",
-            "TaxCode": "TaxCode",
-            "Descripcion": "Descripcion"
-        }
-        
-        datos_transformados = {}
-        for key, value in datos.items():
-            nuevo_key = mapeo_campos.get(key, key)
-            datos_transformados[nuevo_key] = value
-        
-        campos_requeridos = ["SupplierName", "SupplierInvoiceIDByInvcgParty", "InvoiceGrossAmount", "DocumentDate","Descripcion"]
+        datos_transformados = datos.copy()
+            # Validar campos requeridos
+        campos_requeridos = ["SupplierName", "SupplierInvoiceIDByInvcgParty", "InvoiceGrossAmount", "DocumentDate","Description"]
         for campo in campos_requeridos:
             if campo not in datos_transformados:
                 logger.warning(f"Campo requerido '{campo}' no encontrado en datos extraídos")
@@ -466,7 +436,7 @@ def buscar_proveedor_en_sap(factura_datos, proveedores_sap):
     
     return None
 
-def validar_proveedor_con_ai(factura_datos, proveedores_sap):
+def validar_proveedor_con_ai(factura_datos, proveedores_sap): # Pasar a archivo prompts.py
     """
     Usa OpenAI para validar y encontrar el proveedor correcto cuando la búsqueda directa falla.
     """
@@ -739,15 +709,12 @@ def enviar_factura_a_sap(factura_json):
 
 def procesar_factura_completa(texto_factura):
     """
-    FUNCIÓN PRINCIPAL - Procesa una factura desde texto OCR hasta carga en SAP.
+    FUNCIÓN PRINCIPAL - Procesa una factura desde texto extraído por el OCR hasta carga en SAP.
     COMPLETA: Incluye todos los pasos del flujo.
     """
-    print("\n" + "="*70)
-    print("🚀 INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
-    print("="*70)
     
     logger.info("\n" + "="*70)
-    logger.info("INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
+    logger.info("\n INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
     logger.info("="*70)
     
     resultado = {

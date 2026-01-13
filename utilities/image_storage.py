@@ -20,7 +20,7 @@ import requests
 BUCKET_NAME = os.getenv("BUCKET_NAME", "rpa_facturacion")
 
 # Valores sensibles desde entorno
-EASYCONTACT_KEY = os.getenv("EASYCONTACT_KEY", "3HEfwgZ9EQoRLJrkmCtUf4rY")
+EASYCONTACT_KEY = os.getenv("EASYCONTACT_KEY", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", EASYCONTACT_KEY)
 
 
