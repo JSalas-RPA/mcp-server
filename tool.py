@@ -603,9 +603,9 @@ def construir_json_factura_sap(factura_datos, proveedor_info, oc_items):
     if not proveedor_info:
         raise ValueError("Información del proveedor no disponible")
     
-    fecha_documento = format_sap_date(factura_datos.get("DocumentDate"))    
-    invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
+    fecha_documento = format_sap_date(factura_datos.get("DocumentDate"))
     
+    invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
     if not invoice_id or invoice_id == "0":
         print("  ⚠️  No se encontró ID de factura, generando automático...")
         logger.warning("No se encontró ID de factura, generando automático")
