@@ -110,7 +110,7 @@ def process_invoice_with_llm(invoice_text: str, api_key: str):
 # --- EJECUCIÓN DE PRUEBA ---
 # if __name__ == "__main__":
 #     # 1. Configura tu API Key
-#     MY_API_KEY = "API_OPENAI_KEY"
+#     MY_API_KEY = os.getenv("OPENAI_API_KEY")
 #     # 2. Ruta de tu archivo
 #     ARCHIVO = "/home/olguin/Downloads/facturas/factura 31220254.pdf"
     
