@@ -40,7 +40,8 @@ SAP_CONFIG = {
     'password': os.getenv('SAP_PASSWORD', ''),
     'supplier_url': os.getenv('SAP_SUPPLIER_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier'),
     'purchase_order_url': os.getenv('SAP_PURCHASE_ORDER_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder'),
-    'invoice_post_url': os.getenv('SAP_INVOICE_POST_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice')
+    'invoice_post_url': os.getenv('SAP_INVOICE_POST_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice'),
+    'material_doc_url': os.getenv('SAP_MATERIAL_DOC_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_GOODS_MOVEMENT_SRV/A_MaterialDocument')
 }
 
 # ============================================================================
