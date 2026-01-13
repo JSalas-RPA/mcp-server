@@ -69,32 +69,32 @@ if __name__ == "__main__":
 
     source = sys.argv[1]
 
-    #si es ruta local existente
-    if os.path.exists(source):
-        pdf_path = source
-    else:
-        src_lower = source.lower()
-        if src_lower.startswith("http://") or src_lower.startswith("https://"):
-            # primer intento: requests (funciona si el objeto es público)
-            try:
-                print("Descargando vía HTTP(S)...")
-                pdf_path = download_via_requests(source)
-            except Exception as e:
-                print(f"Descarga HTTP falló: {e}. Intentando con cliente GCS si aplica...")
-                # si es URL de storage.googleapis.com, intentar con cliente GCS
-                if "storage.googleapis.com" in source or "storage.cloud.google.com" in source:
-                    pdf_path = download_via_gcs_url(source)
-                else:
-                    raise
-        elif src_lower.startswith("gs://"):
-            print("Descargando vía cliente GCS (gs://)...")
-            pdf_path = download_via_gcs_url(source)
-        else:
-            raise ValueError("Ruta no válida o archivo no encontrado")
+    # #si es ruta local existente
+    # if os.path.exists(source):
+    #     pdf_path = source
+    # else:
+    #     src_lower = source.lower()
+    #     if src_lower.startswith("http://") or src_lower.startswith("https://"):
+    #         # primer intento: requests (funciona si el objeto es público)
+    #         try:
+    #             print("Descargando vía HTTP(S)...")
+    #             pdf_path = download_via_requests(source)
+    #         except Exception as e:
+    #             print(f"Descarga HTTP falló: {e}. Intentando con cliente GCS si aplica...")
+    #             # si es URL de storage.googleapis.com, intentar con cliente GCS
+    #             if "storage.googleapis.com" in source or "storage.cloud.google.com" in source:
+    #                 pdf_path = download_via_gcs_url(source)
+    #             else:
+    #                 raise
+    #     elif src_lower.startswith("gs://"):
+    #         print("Descargando vía cliente GCS (gs://)...")
+    #         pdf_path = download_via_gcs_url(source)
+    #     else:
+    #         raise ValueError("Ruta no válida o archivo no encontrado")
 
-    # # descarga el PDF a un temporal
-    # logger.info(f"Descargando el PDF en la ruta temporal desde: {source} ...")
-    # pdf_path = download_pdf_to_tempfile(source)
+    # Descarga el PDF a un temporal
+    logger.info(f"Descargando el PDF en la ruta temporal desde: {source} ...")
+    pdf_path = download_pdf_to_tempfile(source)
 
     try:
         print(f"PDF descargado en: {pdf_path}")
