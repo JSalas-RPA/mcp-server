@@ -466,7 +466,7 @@ def obtener_ordenes_compra_proveedor(descripcion_factura, monto_factura, supplie
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
-        print({descripcion_factura,monto_factura,supplier_code})
+        print({descripcion_factura, monto_factura,supplier_code})
         if not supplier_code:
             logger.warning("No se proporcionó código de proveedor para obtener órdenes de compra")
             return []
@@ -807,10 +807,26 @@ def procesar_factura_completa(texto_factura):
             resultado['error'] = error_msg
             resultado['message'] = error_msg
             return resultado
-        descripcion_factura = factura_datos.get("Descripcion", "")
+        #descripcion_factura = factura_datos.get("description", "")
+        items = factura_datos.get("Items") or factura_datos.get("items") or []
+        if isinstance(items, dict):
+            items = [items]
+        descripcion_parts = []
+        if isinstance(items, list):
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                for k in ("Description", "Descripcion", "ItemDescription", "description"):
+                    v = it.get(k)
+                    if v:
+                        descripcion_parts.append(str(v).strip())
+                        break
+        descripcion_factura = "; ".join(descripcion_parts) if descripcion_parts else factura_datos.get("Description") or factura_datos.get("description") or ""
+
         monto_factura = factura_datos.get("InvoiceGrossAmount", "")
         supplier_code = proveedor_info.get("Supplier", "")
         tax_code = proveedor_info.get("TaxCode", "")
+        # Pasar la descripción como string y las OCs se pasan como lista al prompt internamente
         oc_items = obtener_ordenes_compra_proveedor(descripcion_factura, monto_factura, supplier_code, tax_code)
         
         # CRÍTICO: Validar que tenemos OC para continuar
