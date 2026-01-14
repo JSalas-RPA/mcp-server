@@ -576,6 +576,7 @@ def construir_json_factura_sap(factura_datos, proveedor_info, oc_items):
     fecha_documento = format_sap_date(factura_datos.get("DocumentDate"))    
     invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
     
+    invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
     if not invoice_id or invoice_id == "0":
         print("  ⚠️  No se encontró ID de factura, generando automático...")
         logger.warning("No se encontró ID de factura, generando automático")
@@ -709,7 +710,7 @@ def enviar_factura_a_sap(factura_json):
 # Tools - FLUJO COMPLETO DE PROCESAMIENTO DE FACTURA
 # ============================================================================
 
-def procesar_factura_completa(texto_factura):
+def procesar_factura_completa(texto_factura,path):
     """
     FUNCIÓN PRINCIPAL - Procesa una factura desde texto extraído por el OCR hasta carga en SAP.
     COMPLETA: Incluye todos los pasos del flujo.
