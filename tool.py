@@ -207,39 +207,9 @@ def extraer_datos_factura_desde_texto(texto_factura):
             print(f"  {key}: {value}")
         print("="*70)
         
-        mapeo_campos = {
-            "NIT/Número de identificación tributaria": "SupplierTaxNumber",
-            "NIT": "SupplierTaxNumber",
-            "RUC": "SupplierTaxNumber",
-            "Número de identificación tributaria": "SupplierTaxNumber",
-            "Nombre legal del emisor": "SupplierName",
-            "Emisor": "SupplierName",
-            "Proveedor": "SupplierName",
-            "Número de factura": "SupplierInvoiceIDByInvcgParty",
-            "Factura": "SupplierInvoiceIDByInvcgParty",
-            "No. Factura": "SupplierInvoiceIDByInvcgParty",
-            "Fecha de emisión": "DocumentDate",
-            "Fecha": "DocumentDate",
-            "Monto total": "InvoiceGrossAmount",
-            "Total": "InvoiceGrossAmount",
-            "Importe": "InvoiceGrossAmount",
-            "Moneda": "DocumentCurrency",
-            "Código de Autorización": "CodigoAutorizacion",
-            "COD. AUTORIZACION": "CodigoAutorizacion",
-            "Autorización": "CodigoAutorizacion",
-            "Números de orden de compra": "PurchaseOrderNumbers",
-            "OC": "PurchaseOrderNumbers",
-            "Orden de Compra": "PurchaseOrderNumbers",
-            "TaxCode": "TaxCode",
-            "Descripcion": "Descripcion"
-        }
-        
-        datos_transformados = {}
-        for key, value in datos.items():
-            nuevo_key = mapeo_campos.get(key, key)
-            datos_transformados[nuevo_key] = value
-        
-        campos_requeridos = ["SupplierName", "SupplierInvoiceIDByInvcgParty", "InvoiceGrossAmount", "DocumentDate","Descripcion"]
+        datos_transformados = datos.copy()
+            # Validar campos requeridos
+        campos_requeridos = ["SupplierName", "SupplierInvoiceIDByInvcgParty", "InvoiceGrossAmount", "DocumentDate","Description"]
         for campo in campos_requeridos:
             if campo not in datos_transformados:
                 logger.warning(f"Campo requerido '{campo}' no encontrado en datos extraídos")
@@ -736,20 +706,17 @@ def enviar_factura_a_sap(factura_json):
             session.close()
 
 # ============================================================================
-# FUNCIÓN PRINCIPAL - PUNTO DE ENTRADA ÚNICO
+# Tools - FLUJO COMPLETO DE PROCESAMIENTO DE FACTURA
 # ============================================================================
 
-def procesar_factura_completa(texto_factura,path):
+def procesar_factura_completa(texto_factura):
     """
-    FUNCIÓN PRINCIPAL - Procesa una factura desde texto OCR hasta carga en SAP.
+    FUNCIÓN PRINCIPAL - Procesa una factura desde texto extraído por el OCR hasta carga en SAP.
     COMPLETA: Incluye todos los pasos del flujo.
     """
-    print("\n" + "="*70)
-    print("🚀 INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
-    print("="*70)
     
-    logger.info("="*70)
-    logger.info("INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
+    logger.info("\n" + "="*70)
+    logger.info("\n INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
     logger.info("="*70)
     
     resultado = {
@@ -842,10 +809,26 @@ def procesar_factura_completa(texto_factura,path):
             resultado['error'] = error_msg
             resultado['message'] = error_msg
             return resultado
-        descripcion_factura = factura_datos.get("Descripcion", "")
+        #descripcion_factura = factura_datos.get("description", "")
+        items = factura_datos.get("Items") or factura_datos.get("items") or []
+        if isinstance(items, dict):
+            items = [items]
+        descripcion_parts = []
+        if isinstance(items, list):
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                for k in ("Description", "Descripcion", "ItemDescription", "description"):
+                    v = it.get(k)
+                    if v:
+                        descripcion_parts.append(str(v).strip())
+                        break
+        descripcion_factura = "; ".join(descripcion_parts) if descripcion_parts else factura_datos.get("Description") or factura_datos.get("description") or ""
+
         monto_factura = factura_datos.get("InvoiceGrossAmount", "")
         supplier_code = proveedor_info.get("Supplier", "")
         tax_code = proveedor_info.get("TaxCode", "")
+        # Pasar la descripción como string y las OCs se pasan como lista al prompt internamente
         oc_items = obtener_ordenes_compra_proveedor(descripcion_factura, monto_factura, supplier_code, tax_code)
         
         # CRÍTICO: Validar que tenemos OC para continuar
@@ -944,7 +927,22 @@ def procesar_factura_completa(texto_factura,path):
         
         return resultado
 
-def extraer_datos_factura(ruta_gcs: str) -> dict:
+        
+    except Exception as e:
+        # ====================================================================
+        # MANEJO DE ERRORES GLOBALES
+        # ====================================================================
+        error_msg = f"Error inesperado en el procesamiento: {str(e)}"
+        print(f"\n❌ ERROR: {error_msg}")
+        logger.error(error_msg)
+        logger.exception(e)
+        
+        resultado['error'] = error_msg
+        resultado['message'] = "Error en el procesamiento de la factura"
+        
+        return resultado
+
+def extraer_texto_pdf(ruta_gcs: str) -> dict:
     """ 
     Extrae datos de una factura desde una ruta GCS usando OCR y LLM.
     """
@@ -960,14 +958,9 @@ def extraer_datos_factura(ruta_gcs: str) -> dict:
         texto_factura = get_transcript_document_cloud_vision(ruta_temp)
         logger.info(f"Texto extraído (primeros 2000 caracteres):\n{texto_factura[:2000]}")
         
-        # Extraer datos usando LLM
-        logger.info("Extrayendo datos de factura usando LLM")
-        datos_factura = extraer_datos_factura_desde_texto(texto_factura)
-        
-        logger.info("Extracción de datos completada exitosamente")
         return {
             "status": "success",
-            "data": datos_factura
+            "data": texto_factura
         }
         
     except Exception as e:
@@ -984,63 +977,7 @@ def extraer_datos_factura(ruta_gcs: str) -> dict:
         except Exception as e:
             logger.warning(f"No se pudo eliminar el archivo temporal: {str(e)}")
 
-# ============================================================================
-# PUNTO DE ENTRADA PARA PRUEBAS LOCALES
-# ============================================================================
-if __name__ == "__main__":
-    """
-    Punto de entrada para pruebas locales.
-    En producción, solo se llamará a procesar_factura_completa() desde el servidor.
-    """
-    print("\n" + "="*70)
-    print("SISTEMA DE CARGA DE FACTURAS SAP - MODO PRUEBA")
-    print("="*70)
-    
-    try:
-        # Leer texto de factura desde archivo (para pruebas)
-        with open("factura_texto.txt", "r", encoding="utf-8") as f:
-            texto_factura = f.read()
-        
-        # Llamar a la función principal
-        resultado = procesar_factura_completa(texto_factura)
-        
-        # Mostrar resultados
-        print("\n" + "="*70)
-        print("📊 RESULTADO FINAL DEL PROCESO:")
-        print("="*70)
-        
-        if resultado['success']:
-            print("✅ PROCESO COMPLETADO CON ÉXITO")
-            print(f"   Factura ID: {resultado['data']['factura_id']}")
-            print(f"   Proveedor: {resultado['data']['proveedor']}")
-            print(f"   Código Proveedor SAP: {resultado['data']['proveedor_codigo']}")
-            print(f"   Código Autorización: {resultado['data']['codigo_autorizacion'][:50]}...")
-            print(f"   Monto: {resultado['data']['monto']} BOB")
-            print(f"   Órdenes de Compra: {resultado['data']['oc_count']}")
-            
-            # Mostrar el JSON final completo automáticamente
-            print("\n" + "="*70)
-            print("📄 JSON FINAL ENVIADO A SAP:")
-            print("="*70)
-            print(json.dumps(resultado['data']['json_final'], indent=2, ensure_ascii=False))
-            print("="*70)
-        else:
-            print("❌ PROCESO FINALIZADO CON ERROR")
-            print(f"   Error: {resultado['error']}")
-            print(f"   Mensaje: {resultado['message']}")
-        print("="*70)
-        
-        # Guardar resultado en archivo para análisis
-        with open("resultado_proceso.json", "w", encoding="utf-8") as f:
-            json.dump(resultado, f, indent=2, ensure_ascii=False)
-        print("✓ Resultado guardado en 'resultado_proceso.json'")
-        
-    except FileNotFoundError:
-        print("❌ Error: No se encontró el archivo 'factura_texto.txt'")
-        print("   Crea un archivo con el texto de la factura o ajusta la ruta.")
-    except Exception as e:
-        print(f"❌ Error inesperado: {e}")
-        
+
         
         
     
