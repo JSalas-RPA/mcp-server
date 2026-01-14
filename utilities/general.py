@@ -8,6 +8,13 @@ from PIL import Image
 # -----------------------------
 # Configuración de credenciale
 # -----------------------------
+# Intentar cargar .env si python-dotenv está instalado
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # carga variables desde .env al entorno
+except Exception:
+    pass
+
 # Leer el contenido del secret desde la variable de entorno
 gcp_key_json = os.getenv("datecKeyCredentials")
 
@@ -25,8 +32,10 @@ with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as tem
 # -----------------------------
 openai_client = OpenAI(api_key=os.getenv("API_OPENAI_KEY"))
 
+# LlamaParse API key comes from environment to avoid hardcoding secrets.
+llama_api_key = os.getenv("LLAMAPARSE_API_KEY")
 parser = LlamaParse(
-    api_key="llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
+    api_key=llama_api_key,
     result_type="text",
     premium_mode=True
 )
@@ -36,7 +45,7 @@ parser = LlamaParse(
 # -----------------------------
 def get_transcript_document(path_doc):
     parser_ci = LlamaParse(
-        api_key="llx-pca1DxoBCQgCHz2zbfiQIS5ng5P6liwDRIwyb807m4hzODyi",
+        api_key=llama_api_key,
         result_type="markdown",
         premium_mode=True
     )

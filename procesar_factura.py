@@ -4,15 +4,15 @@
 # Date: 2024-06-10
 # Description: Procesamiento de facturas con validación avanzada de proveedores en SAP
 # ============================================================================
+import sys, os, re, logging
 import requests
 import json
-import logging
-import re
 from datetime import datetime
 from difflib import SequenceMatcher
 from requests.auth import HTTPBasicAuth
 from prompts import get_OC_validator_prompt, get_invoice_text_parser_prompt, get_invoice_validator_prompt
-from utilities.general import get_openai_answer
+from utilities.general import get_openai_answer, get_transcript_document_cloud_vision
+from utilities.image_storage import download_pdf_to_tempfile
 
 # ============================================================================
 # CONFIGURACIÓN Y LOGGING
@@ -27,13 +27,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Intentar cargar .env si python-dotenv está instalado
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # carga variables desde .env al entorno
+except Exception:
+    pass
+
 # Configuración de endpoints SAP - CORREGIDO
 SAP_CONFIG = {
-    'username': "BOT_ASSET_CHANGES",
-    'password': "LXh9=a(7Rk2&dkd3HJkKGu5PnoTC2]bSa6<{@w]+",
-    'supplier_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier",
-    'purchase_order_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder",  # CORREGIDO
-    'invoice_post_url': "https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice"
+    'username': os.getenv('SAP_USERNAME', ''),
+    'password': os.getenv('SAP_PASSWORD', ''),
+    'supplier_url': os.getenv('SAP_SUPPLIER_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier'),
+    'purchase_order_url': os.getenv('SAP_PURCHASE_ORDER_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder'),
+    'invoice_post_url': os.getenv('SAP_INVOICE_POST_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SUPPLIERINVOICE_PROCESS_SRV/A_SupplierInvoice'),
+    'material_doc_url': os.getenv('SAP_MATERIAL_DOC_URL', 'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_GOODS_MOVEMENT_SRV/A_MaterialDocument')
 }
 
 # ============================================================================
@@ -197,39 +205,9 @@ def extraer_datos_factura_desde_texto(texto_factura):
             print(f"  {key}: {value}")
         print("="*70)
         
-        mapeo_campos = {
-            "NIT/Número de identificación tributaria": "SupplierTaxNumber",
-            "NIT": "SupplierTaxNumber",
-            "RUC": "SupplierTaxNumber",
-            "Número de identificación tributaria": "SupplierTaxNumber",
-            "Nombre legal del emisor": "SupplierName",
-            "Emisor": "SupplierName",
-            "Proveedor": "SupplierName",
-            "Número de factura": "SupplierInvoiceIDByInvcgParty",
-            "Factura No.": "SupplierInvoiceIDByInvcgParty",
-            "No. Factura": "SupplierInvoiceIDByInvcgParty",
-            "Fecha de emisión": "DocumentDate",
-            "Fecha": "DocumentDate",
-            "Monto total": "InvoiceGrossAmount",
-            "Total": "InvoiceGrossAmount",
-            "Importe": "InvoiceGrossAmount",
-            "Moneda": "DocumentCurrency",
-            "Código de Autorización": "AssignmentReference",
-            "COD. AUTORIZACION": "AssignmentReference",
-            "Autorización": "AssignmentReference",
-            "Números de orden de compra": "PurchaseOrderNumbers",
-            "OC": "PurchaseOrderNumbers",
-            "Orden de Compra": "PurchaseOrderNumbers",
-            "TaxCode": "TaxCode",
-            "Descripcion": "Descripcion"
-        }
-        
-        datos_transformados = {}
-        for key, value in datos.items():
-            nuevo_key = mapeo_campos.get(key, key)
-            datos_transformados[nuevo_key] = value
-        
-        campos_requeridos = ["SupplierName", "SupplierInvoiceIDByInvcgParty", "InvoiceGrossAmount", "DocumentDate","Descripcion"]
+        datos_transformados = datos.copy()
+            # Validar campos requeridos
+        campos_requeridos = ["SupplierName", "SupplierInvoiceIDByInvcgParty", "InvoiceGrossAmount", "DocumentDate","Description"]
         for campo in campos_requeridos:
             if campo not in datos_transformados:
                 logger.warning(f"Campo requerido '{campo}' no encontrado en datos extraídos")
@@ -458,7 +436,7 @@ def buscar_proveedor_en_sap(factura_datos, proveedores_sap):
     
     return None
 
-def validar_proveedor_con_ai(factura_datos, proveedores_sap):
+def validar_proveedor_con_ai(factura_datos, proveedores_sap): # Pasar a archivo prompts.py
     """
     Usa OpenAI para validar y encontrar el proveedor correcto cuando la búsqueda directa falla.
     """
@@ -488,7 +466,7 @@ def obtener_ordenes_compra_proveedor(descripcion_factura, monto_factura, supplie
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
-        print({descripcion_factura,monto_factura,supplier_code})
+        print({descripcion_factura, monto_factura,supplier_code})
         if not supplier_code:
             logger.warning("No se proporcionó código de proveedor para obtener órdenes de compra")
             return []
@@ -731,15 +709,12 @@ def enviar_factura_a_sap(factura_json):
 
 def procesar_factura_completa(texto_factura):
     """
-    FUNCIÓN PRINCIPAL - Procesa una factura desde texto OCR hasta carga en SAP.
+    FUNCIÓN PRINCIPAL - Procesa una factura desde texto extraído por el OCR hasta carga en SAP.
     COMPLETA: Incluye todos los pasos del flujo.
     """
-    print("\n" + "="*70)
-    print("🚀 INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
-    print("="*70)
     
-    logger.info("="*70)
-    logger.info("INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
+    logger.info("\n" + "="*70)
+    logger.info("\n INICIANDO PROCESO COMPLETO DE CARGA DE FACTURA")
     logger.info("="*70)
     
     resultado = {
@@ -832,10 +807,26 @@ def procesar_factura_completa(texto_factura):
             resultado['error'] = error_msg
             resultado['message'] = error_msg
             return resultado
-        descripcion_factura = factura_datos.get("Descripcion", "")
+        #descripcion_factura = factura_datos.get("description", "")
+        items = factura_datos.get("Items") or factura_datos.get("items") or []
+        if isinstance(items, dict):
+            items = [items]
+        descripcion_parts = []
+        if isinstance(items, list):
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                for k in ("Description", "Descripcion", "ItemDescription", "description"):
+                    v = it.get(k)
+                    if v:
+                        descripcion_parts.append(str(v).strip())
+                        break
+        descripcion_factura = "; ".join(descripcion_parts) if descripcion_parts else factura_datos.get("Description") or factura_datos.get("description") or ""
+
         monto_factura = factura_datos.get("InvoiceGrossAmount", "")
         supplier_code = proveedor_info.get("Supplier", "")
         tax_code = proveedor_info.get("TaxCode", "")
+        # Pasar la descripción como string y las OCs se pasan como lista al prompt internamente
         oc_items = obtener_ordenes_compra_proveedor(descripcion_factura, monto_factura, supplier_code, tax_code)
         
         # CRÍTICO: Validar que tenemos OC para continuar
@@ -946,10 +937,27 @@ if __name__ == "__main__":
     print("SISTEMA DE CARGA DE FACTURAS SAP - MODO PRUEBA")
     print("="*70)
     
+    if len(sys.argv) < 2:
+        print("Uso: python scripts/test_ocr.py <ruta_local|url_https|gs://...>")
+        raise SystemExit(1)
+
+    source = sys.argv[1]
+
     try:
         # Leer texto de factura desde archivo (para pruebas)
-        with open("factura_texto.txt", "r", encoding="utf-8") as f:
-            texto_factura = f.read()
+        # with open("factura_texto.txt", "r", encoding="utf-8") as f:
+        #     texto_factura = f.read()
+        
+        logger.info(f"Iniciando extracción de datos de factura desde: {source}")
+        
+        # Descargar PDF temporalmente
+        ruta_temp = download_pdf_to_tempfile(source)
+        logger.info(f"Archivo temporal descargado: {ruta_temp}")
+        
+        # OCR
+        logger.info("Extrayendo texto con Cloud Vision")
+        texto_factura = get_transcript_document_cloud_vision(ruta_temp)
+        logger.info(f"Texto extraído (primeros 2000 caracteres):\n{texto_factura[:2000]}")
         
         # Llamar a la función principal
         resultado = procesar_factura_completa(texto_factura)
