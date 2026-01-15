@@ -1,7 +1,6 @@
 # ============================================================================
 # Server MCP Dsuite
 # Author: Jordi Salas
-# Date: 2024-06-10
 # Description: Procesamiento de facturas con validación avanzada de proveedores en SAP
 # ============================================================================
 import sys, os, re, logging
