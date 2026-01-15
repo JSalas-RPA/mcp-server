@@ -584,7 +584,7 @@ def construir_json_factura_sap(factura_datos, proveedor_info, oc_items):
     invoice_amount = factura_datos.get("InvoiceGrossAmount", 0.0)
     invoice_amount_str = f"{invoice_amount:.0f}"
     
-    cod_autorizacion = factura_datos.get("CodigoAutorizacion", "")
+    cod_autorizacion = factura_datos.get("AssignmentReference", "")
     print(f"  Código de Autorización inicial: {cod_autorizacion}")
     cod_autorizacion = cod_autorizacion[:14]
     if not cod_autorizacion:
