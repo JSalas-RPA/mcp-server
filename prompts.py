@@ -164,3 +164,75 @@ def get_OC_validator_prompt(descripcion_factura, monto_factura, supplier_code, o
     Retorna SOLO UNA orden de compra en formato JSON como se especificó."""
     
     return system_prompt, user_prompt
+
+def get_material_entry_validator_prompt(factura_info, oc_info, material_items):
+    """
+    Prompt para que el LLM seleccione la entrada de material correcta.
+    """
+    # Convertir los ítems de material a formato legible
+    material_items_str = []
+    for i, item in enumerate(material_items, 1):
+        material_items_str.append(f"""
+        ÍTEM {i}:
+          • Documento: {item.get('MaterialDocument', 'N/A')}
+          • Año: {item.get('MaterialDocumentYear', 'N/A')}
+          • Ítem: {item.get('MaterialDocumentItem', 'N/A')}
+          • Material: {item.get('Material', 'N/A')}
+          • Cantidad: {item.get('QuantityInEntryUnit', 'N/A')} {item.get('EntryUnit', 'N/A')}
+          • Planta: {item.get('Plant', 'N/A')}
+          • Almacén: {item.get('StorageLocation', 'N/A')}
+          • OC: {item.get('PurchaseOrder', 'N/A')} - Ítem OC: {item.get('PurchaseOrderItem', 'N/A')}
+          • Fecha: {item.get('DocumentDate', 'N/A')}
+        """)
+    
+    material_items_formatted = "\n".join(material_items_str)
+    
+    system_prompt = """Eres un experto en SAP MM que debe seleccionar la entrada de material correcta 
+    (documento de MIGO) para asociar con una factura de proveedor.
+
+    Tu tarea es analizar los datos de la factura y las entradas de material disponibles,
+    y seleccionar la entrada de material MÁS APROPIADA.
+
+    CRITERIOS DE SELECCIÓN (por orden de prioridad):
+    1. La entrada debe ser para la misma Orden de Compra (OC) e ítem de OC
+    2. La cantidad debe ser la más cercana al monto de la factura
+    3. El material debe coincidir o ser similar al descrito en la factura
+    4. La fecha debe ser anterior a la fecha de la factura
+    5. Si hay varias, selecciona la más reciente
+
+    INFORMACIÓN CLAVE:
+    - La factura es por: {monto_factura} BOB
+    - El producto en la factura es: {descripcion_producto}
+
+    RESPONDE ÚNICAMENTE con un objeto JSON que contenga:
+    {{
+        "ReferenceDocument": "Número de documento de material",
+        "ReferenceDocumentFiscalYear": "Año fiscal del documento",
+        "ReferenceDocumentItem": "Número de ítem del documento"
+    }}
+
+    Si NO hay ninguna entrada apropiada, responde con un objeto vacío {{}}."""
+
+    user_prompt = f"""DATOS DE LA FACTURA:
+    • Número de Factura: {factura_info.get('supplier_invoice_id', 'N/A')}
+    • Proveedor SAP: {factura_info.get('supplier_code', 'N/A')}
+    • Fecha Documento: {factura_info.get('document_date', 'N/A')}
+    • Monto Total: {factura_info.get('invoice_gross_amount', 'N/A')} BOB
+    • Código Autorización: {factura_info.get('assignment_reference', 'N/A')}
+    
+    PRODUCTOS EN LA FACTURA:
+    {json.dumps(factura_info.get('items', []), indent=2, ensure_ascii=False)}
+    
+    ORDEN DE COMPRA SELECCIONADA:
+    • OC: {oc_info.get('PurchaseOrder', 'N/A')}
+    • Ítem OC: {oc_info.get('PurchaseOrderItem', 'N/A')}
+    • Material OC: {oc_info.get('Material', 'N/A')}
+    
+    ENTRADAS DE MATERIAL DISPONIBLES (MIGO) - Total: {len(material_items)}:
+    {material_items_formatted}
+    
+    Por favor, selecciona la entrada de material más apropiada basándote en los criterios anteriores.
+    Si hay múltiples opciones válidas, selecciona la que tenga la fecha más reciente.
+    """
+    
+    return system_prompt, user_prompt

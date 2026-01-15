@@ -14,7 +14,7 @@ from utilities.general import get_openai_answer, get_transcript_document_cloud_v
 from utilities.image_storage import download_pdf_to_tempfile
 
 # ============================================================================
-# CONFIGURACIÓN Y LOGGING
+# CONFIGURACIÓN Y LOGGING 
 # ============================================================================
 logging.basicConfig(
     level=logging.INFO,
