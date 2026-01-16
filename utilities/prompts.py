@@ -1,29 +1,5 @@
 import json
 
-# def get_invoice_text_parser_prompt(texto_factura):
-#     system_prompt = """Eres un asistente especializado en análisis de facturas y SAP S/4HANA. 
-#     Extrae únicamente los datos que están explícitamente presentes en el texto. 
-#     NO inventes ni asumas datos. Si un dato no está presente, déjalo como cadena vacía.
-    
-#     Datos a extraer:
-#     1. NIT/Número de identificación tributaria (suele estar al inicio)
-#     2. Nombre legal del emisor
-#     3. Número de factura
-#     4. Fecha de emisión
-#     5. Monto total
-#     6. Moneda
-#     7. Números de orden de compra (si existen)
-#     8. COD. AUTORIZACION/Codigo de autorización
-#     9. Descripcion(un detalle del producto o servicio facturado)
-    
-#     Devuelve un JSON válido."""
-    
-#     user_prompt = f"""Por favor, analiza el siguiente texto de factura y extrae los datos solicitados:
-    
-#     {texto_factura[:5000]}"""
-    
-#     return system_prompt, user_prompt
-
 def get_invoice_validator_prompt(factura_datos, proveedores_sap):
     system_prompt = """Eres un validador de facturas para SAP S/4HANA.
     Tu tarea es verificar si los datos de la factura coinciden con algún proveedor en SAP.
@@ -44,7 +20,6 @@ def get_invoice_validator_prompt(factura_datos, proveedores_sap):
     ¿Cuál proveedor coincide?"""
     
     return system_prompt, user_prompt
-
 
 def get_invoice_text_parser_prompt(invoice_text):
     """

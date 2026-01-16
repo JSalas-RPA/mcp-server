@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 from difflib import SequenceMatcher
 from requests.auth import HTTPBasicAuth
-from prompts import get_OC_validator_prompt, get_invoice_text_parser_prompt, get_invoice_validator_prompt, get_material_entry_validator_prompt
+from utilities.prompts import get_OC_validator_prompt, get_invoice_text_parser_prompt, get_invoice_validator_prompt, get_material_entry_validator_prompt
 from utilities.general import get_openai_answer, get_transcript_document_cloud_vision
 from utilities.image_storage import download_pdf_to_tempfile
 

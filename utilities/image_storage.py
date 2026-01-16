@@ -1,4 +1,3 @@
-import logging
 import os
 import tempfile
 import time, re, base64, shutil
@@ -8,20 +7,8 @@ from google.api_core import exceptions
 from google.cloud import storage
 import requests
 
-# from src.utilities.config import load_config
-# # from src.preprocessing_images import extract_signature, clean_signature, analizar_documento_google, generateScore
-
-# config = load_config("config.yaml")
-
-# TWILIO_ACCOUNT_SID = config['twilio']['account_sid']
-# TWILIO_AUTH_TOKEN = config['twilio']['auth_token']
-
-# # Configurar cliente de GCS
+# Configurar cliente de GCS
 BUCKET_NAME = os.getenv("BUCKET_NAME", "rpa_facturacion")
-
-# Valores sensibles desde entorno
-EASYCONTACT_KEY = os.getenv("EASYCONTACT_KEY", "")
-ENVIRONMENT = os.getenv("ENVIRONMENT", EASYCONTACT_KEY)
 
 
 _storage_client = None
@@ -32,43 +19,9 @@ def get_storage_client():
         _storage_client = storage.Client()
     return _storage_client
 
-def upload_image_to_gcs(user_id, image_url):
-    print(f'Media URL: {image_url}')
-    
-    try:
-        if ENVIRONMENT == EASYCONTACT_KEY:
-            r = requests.get(image_url, verify=False)
-        else:
-            r = requests.get(image_url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN))
-        r.raise_for_status()
-    except requests.RequestException as e:
-        print(f"Error al descargar la imagen: {e}")
-        return None
-
-    content_type = r.headers.get("Content-Type", "")
-    print(f"Content-Type: {content_type}")
-
-    # if content_type not in ["image/jpeg", "image/png", "image/gif", "pdf"]:
-    #     print("Formato de imagen no soportado.")
-    #     return None
-
-    image_data = r.content
-    image_extension = content_type.split("/")[-1]
-
-    # if ENVIRONMENT != EASYCONTACT_KEY:
-    image_name = f"{user_id}/{content_type.split('/')[0]}_{int(time.time())}.{image_extension}"
-    
-    try:
-        bucket = get_storage_client().bucket(BUCKET_NAME)
-        blob = bucket.blob(image_name)
-        blob.upload_from_string(image_data, content_type=content_type)
-
-        print(f"{content_type.split('/')[0]} subida a gs://{BUCKET_NAME}/{image_name}")
-        return image_name
-    except Exception as e:
-        print(f"Error al subir la imagen a GCS: {e}")
-        return None
-    
+# -----------------------------
+# Funciones de almacenamiento
+# -----------------------------
 
 def upload_file_base64_to_gcs(user_email: str, file_base64: str):
     """
