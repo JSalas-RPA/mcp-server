@@ -1,0 +1,73 @@
+{
+  "success": true,
+  "datos_factura": {
+    "SupplierTaxNumber": "6057461",
+    "SupplierName": "Laboratorios Pharma",
+    "SupplierInvoiceIDByInvcgParty": "22122025001",
+    "DocumentDate": "2025-12-22T00:00:00",
+    "InvoiceGrossAmount": 2500.0,
+    "AssignmentReference": "457C61867FDA3181EB",
+    "CustomerName": "Melvin Díaz",
+    "CustomerCode": "6547",
+    "TaxCode": "V0",
+    "Items": [
+      {
+        "ProductCode": "5354",
+        "Quantity": 5000,
+        "Description": "ASPIRINITA 100 MG",
+        "UnitPrice": 0.5,
+        "Discount": 0.0,
+        "Subtotal": 2500.0
+      }
+    ]
+  },
+  "proveedor": {
+    "Supplier": "1000060",
+    "SupplierFullName": "Empresa PHARMA/00000 SANTA CRUZ",
+    "SupplierName": "PHARMA",
+    "SupplierAccountGroup": "SUPL",
+    "TaxNumber": "6057461",
+    "MetodoBusqueda": "Tax Number Exacto",
+    "Similitud": 1.0
+  },
+  "ordenes_compra": [
+    {
+      "PurchaseOrder": "4500000104",
+      "PurchaseOrderItem": "10",
+      "DocumentCurrency": "BOB",
+      "QuantityInPurchaseOrderUnit": "1.000",
+      "PurchaseOrderQuantityUnit": "PC",
+      "SupplierInvoiceItemAmount": "2500.0",
+      "TaxCode": "V0"
+    }
+  ],
+  "json_sap": {
+    "CompanyCode": "1000",
+    "DocumentDate": "2025-12-22T00:00:00",
+    "PostingDate": "2025-12-22T00:00:00",
+    "SupplierInvoiceIDByInvcgParty": "22122025001",
+    "InvoicingParty": "1000060",
+    "AssignmentReference": "457C61867FDA31",
+    "DocumentCurrency": "BOB",
+    "InvoiceGrossAmount": "2500",
+    "DueCalculationBaseDate": "2025-12-22T00:00:00",
+    "TaxIsCalculatedAutomatically": true,
+    "TaxDeterminationDate": "2025-12-22T00:00:00",
+    "SupplierInvoiceStatus": "B",
+    "to_SuplrInvcItemPurOrdRef": {
+      "results": [
+        {
+          "SupplierInvoiceItem": "00001",
+          "PurchaseOrder": "4500000104",
+          "PurchaseOrderItem": "10",
+          "DocumentCurrency": "BOB",
+          "QuantityInPurchaseOrderUnit": "1.000",
+          "PurchaseOrderQuantityUnit": "PC",
+          "SupplierInvoiceItemAmount": "2500",
+          "TaxCode": "V0"
+        }
+      ]
+    }
+  },
+  "enviado": true
+}
