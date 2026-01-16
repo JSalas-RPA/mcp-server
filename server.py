@@ -19,7 +19,6 @@ mcp = FastMCP("MCP Server S4HANA Tools")
 # ------------------------------
 # 1. TOOL: Subir PDF desde EasyContact a GCS
 # ------------------------------
-"""
 @mcp.tool()
 def subir_pdf_easycontact(user_email: str, image_url: str) -> str:
     url = upload_image_to_gcs(user_email, image_url)
@@ -158,52 +157,6 @@ def extraer_texto(ruta_gcs: str) -> dict:
 # ------------------------------
 # 2.0 TOOL: Procesar factura completa
 # ------------------------------
-# ============================================================
-# JSON ORIGINAL DE FACTURA (tal como lo recibes o lo defines)
-# ============================================================
-
-factura_json ={
-  "d": {
-    "CompanyCode": "1000",
-    "DocumentDate": "2025-12-19T14:30:00",
-    "PostingDate": "2025-12-19T14:30:00",
-    "SupplierInvoiceIDByInvcgParty": "6057461",
-    "InvoicingParty": "1000120",
-    "DocumentCurrency": "BOB",
-    "InvoiceGrossAmount": "2500",
-    "DueCalculationBaseDate": "2025-12-19T14:30:00",
-    "TaxIsCalculatedAutomatically": True,
-    "TaxDeterminationDate": "2025-12-19T14:30:00",
-    "SupplierInvoiceStatus": "B",
-    "AssignmentReference":"457C61867FDA31",
-    "to_SuplrInvcItemPurOrdRef": {
-      "results": [
-        {
-          "SupplierInvoiceItem": "00001",
-          "PurchaseOrder": "4500000000",
-          "PurchaseOrderItem": "00010",
-          "DocumentCurrency": "BOB",
-          "QuantityInPurchaseOrderUnit": "1.000",
-          "PurchaseOrderQuantityUnit": "EA",
-          "SupplierInvoiceItemAmount": "2500",
-          "TaxCode": "V0"
-        }
-      ]
-    }
-  }
-}
-
-# ============================================================
-# LIMPIEZA — NO ENVIAMOS NUNCA UN JSON CON "d" DOBLE
-# ============================================================
-
-if "d" in factura_json:
-    factura_json = factura_json["d"]   # <-- JSON limpio para SAP
-
-# ============================================================
-# TOOL FINAL (NO SE MODIFICA NADA INTERNO)
-# ============================================================
-
 @mcp.tool()
 def cargar_factura_a_sap(texto_factura: list) -> dict:
     """
