@@ -246,9 +246,9 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
         'enviado': enviar
     }
 
-    with open("assets/resultado_flujo.json", "w", encoding="utf-8") as f:
+    with open("data/resultado_flujo.json", "w", encoding="utf-8") as f:
         json.dump(resultado_final, f, indent=2, ensure_ascii=False)
-    print("💾 Resultado guardado en 'assets/resultado_flujo.json'")
+    print("💾 Resultado guardado en 'data/resultado_flujo.json'")
 
     return True
 

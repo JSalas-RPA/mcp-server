@@ -12,6 +12,7 @@ if __name__ == "__main__":
     print(json.dumps(resultado, indent=2, ensure_ascii=False))
     if resultado.get("status") == "error":
         raise SystemExit(1)
+    sys.exit()
     datos_extraidos = parsear_datos_factura(resultado.get("data", ""))
     print("Datos estructurados extraídos:")
     print(json.dumps(datos_extraidos, indent=2, ensure_ascii=False))

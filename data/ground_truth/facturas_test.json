@@ -1,0 +1,130 @@
+{
+  "_metadata": {
+    "version": "1.0",
+    "created": "2026-01-19",
+    "description": "Datos de referencia para verificación de flujo de facturas",
+    "autor": "Equipo Datec"
+  },
+  "facturas": {
+    "_ejemplo_factura.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "NOMBRE PROVEEDOR EJEMPLO",
+        "SupplierTaxNumber": "12345678",
+        "SupplierInvoiceIDByInvcgParty": "123456",
+        "DocumentDate": "2025-01-15",
+        "InvoiceGrossAmount": 1000.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "0000001234",
+        "SupplierName": "NOMBRE PROVEEDOR EJEMPLO",
+        "similitud_minima": 0.8
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000100",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+    "nibol-melvin-13-12.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "TEST2 CHILE NIBOL",
+        "SupplierTaxNumber": "6057461",
+        "SupplierInvoiceIDByInvcgParty": "31220254",
+        "DocumentDate": "2025-12-03T00:00:00",
+        "InvoiceGrossAmount": 250.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "0000001234",
+        "SupplierName": "TEST2 CHILE NIBOL",
+        "similitud_minima": 0.8
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000100",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+    "pharma-melvin-22-12.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Pharma",
+        "SupplierTaxNumber": "6057461",
+        "SupplierInvoiceIDByInvcgParty": "22122025001",
+        "DocumentDate": "2025-12-22T00:00:00",
+        "InvoiceGrossAmount": 2500.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "0000001234",
+        "SupplierName": "Laboratorios Pharma",
+        "similitud_minima": 0.8
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000100",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    }
+  }
+}

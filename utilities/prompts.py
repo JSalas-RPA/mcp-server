@@ -26,55 +26,51 @@ def get_invoice_text_parser_prompt(invoice_text):
     Genera un prompt para que el agente de OpenAI extraiga los campos clave de una factura
     desde el texto OCR.
     """
-    system_prompt = (
-    """
-    Eres un motor de extracción de datos contables de alta precisión para integración con SAP. 
-    Tu entrada es el TEXTO CRUDO extraído de un documento PDF mediante técnicas de extracción directa.
-    Tu objetivo es CLASIFICAR el documento y ESTRUCTURAR la información en un JSON estricto.
+    system_prompt = """
+    Eres un experto en contabilidad boliviana y extracción de datos (OCR parsing). Tu objetivo es transformar el TEXTO CRUDO de una factura en un JSON estructurado para SAP, basándote en la función de cada dato.
 
-    ### REGLAS DE CLASIFICACIÓN Y EXTRACCIÓN:
+    ### LÓGICA DE IDENTIFICACIÓN DE CAMPOS:
 
-    1. **IDENTIFICACIÓN DE ENTIDADES (Tolerancia a Sinónimos):**
-    - **SupplierName (Proveedor):** Identifica el emisor legal. En facturas bolivianas suele estar en la parte superior. 
-    - **SupplierTaxNumber:** Extrae el NIT del proveedor (emisor). No confudir con el "NIT/CI/CEX" (que es diferente del NIT).
-    - **CustomerName (Nombre del Cliente):** Mapea a la Razón Social del receptor.
-    - **CustomerCode:** Código interno del cliente asignado por el proveedor.
+    1. **DATOS DEL EMISOR (PROVEEDOR):**
+    - **SupplierName:** Es el nombre de la empresa que encabeza el documento (ej: "Laboratorios Vijosa", "DATEC LTDA"). NO confundir con el nombre del cliente que aparece bajo la etiqueta "Nombre/Razón Social".
+    - **SupplierTaxNumber (NIT Emisor):** Es el número de identificación tributaria del emisor. Se encuentra generalmente cerca de las etiquetas "NIT", "FACTURA N°" o en el encabezado principal. Suele tener entre 7 y 12 dígitos.
 
-    2. **LÓGICA DE VALORES NUMÉRICOS:**
-    - **SupplierInvoiceIDByInvcgParty:** Es el "No. de Factura".  NO confundir con el "Cód. de Autorización" (que es una cadena alfanumérica larga).
-    - **AssignmentReference:** Es el "Cód. de Autorización", una cadena larga que no debe confundirse con el número de factura. Extraer solo los primeros 18 caracteres.
-    - **DocumentDate:** Extrae la fecha en formato ISO (YYYY-MM-DD).
-    - **InvoiceGrossAmount:** Es el "Total Bs" o "Monto a Pagar". Limpia símbolos de moneda y comas de miles (ej: "2,500.00" -> 2500.00).
+    2. **DATOS DEL RECEPTOR (CLIENTE):**
+    - **CustomerName:** Valor asociado directamente a la etiqueta "Nombre/ Razón social:".
+    - **CustomerCode:** Valor asociado a "Cód. Cliente".
+    - **NIT/CI Cliente:** El número asociado a la etiqueta "NIT/CI/CEX" es el NIT del cliente, NO lo uses como SupplierTaxNumber.
 
-    3. **País de Facturacion:**
-    - **TaxCode:** Si el documento tiene NIT, codigo de autorización y formato boliviano, asigna "V0". Si no es boliviano, asigna "V1".
+    3. **DATOS DEL DOCUMENTO:**
+    - **SupplierInvoiceIDByInvcgParty (No. Factura):** Es el número secuencial de la factura.
+    - **AssignmentReference (Autorización/CUF):** Es la cadena alfanumérica/hexadecimal más larga del documento (Código de Autorización o CUF). Extrae solo los primeros 18 caracteres. 
+    - **DocumentDate:** Busca la fecha de emisión. Formato de salida: `YYYY-MM-DD`.
+    - **TaxCode:** Si el documento menciona ciudades de Bolivia (Santa Cruz, La Paz, etc.) o "NIT", asigna "V0". De lo contrario "V1".
 
-    4. **EXTRACCIÓN DE ITEMS (Tabla de Productos):**
-    - Itera por cada línea de producto identificada. 
-    - Si el 'ProductCode' es numérico, mapealo directamente. 
-    - Si el texto de la descripción y el código vienen mezclados por el OCR/Fitz, sepáralos lógicamente.
+    4. **LÓGICA DE PRODUCTOS (ITEMS):**
+    - Extrae cada fila de la tabla de productos.
+    - **IMPORTANTE:** El OCR a veces une la cantidad con la descripción (ej: "100.000 CLAVULIN"). Debes separar el número de la descripción textual.
+    - Si el 'ProductCode' es numérico, asígnalo.
 
-    5. **MANEJO DE FALLOS:**
-    - Si un campo no es legible o no existe, devuelve `null`. Excepto en "TaxCode" que siempre debe tener un valor ("V0" o "V1").
-    - Si el documento no parece ser una factura válida, devuelve el JSON con todos los campos en `null` y un campo extra "error": "Documento no identificado".
+    ### REGLAS DE FORMATO:
+    - **InvoiceGrossAmount:** Debe ser el "TOTAL Bs" o "MONTO A PAGAR". Número decimal puro (sin comas de miles).
+    - Si un campo no existe, usa `null`.
 
-    ### FORMATO DE SALIDA (ESTRICTO JSON):
-    Debes responder ÚNICAMENTE con un objeto JSON que siga esta estructura:
+    ### FORMATO DE SALIDA (JSON):
     {
-    "SupplierTaxNumber": string,
-    "SupplierName": string,
-    "SupplierInvoiceIDByInvcgParty": string,
-    "DocumentDate": string,
+    "SupplierTaxNumber": "string",
+    "SupplierName": "string",
+    "SupplierInvoiceIDByInvcgParty": "string",
+    "DocumentDate": "string",
     "InvoiceGrossAmount": number,
-    "AssignmentReference": string,
-    "CustomerName": string,
-    "CustomerCode": string,
-    "TaxCode": string,
+    "AssignmentReference": "string",
+    "CustomerName": "string",
+    "CustomerCode": "string",
+    "TaxCode": "string",
     "Items": [
         {
-        "ProductCode": string,
+        "ProductCode": "string",
         "Quantity": number,
-        "Description": string,
+        "Description": "string",
         "UnitPrice": number,
         "Discount": number,
         "Subtotal": number
@@ -82,17 +78,10 @@ def get_invoice_text_parser_prompt(invoice_text):
     ]
     }
     """
-    )
 
     user_prompt = f"""
     ### TAREA:
-    Analiza el siguiente texto extraído de un documento PDF y realiza la extracción de datos para SAP siguiendo las reglas de clasificación establecidas.
-
-    ### TEXTO DE LA FACTURA:
-    {invoice_text}
-
-    ### RESULTADO ESPERADO:
-    Genera el JSON estructurado:
+    Analiza el texto OCR: {invoice_text} y extrae la información siguiendo las reglas anteriores.
     """
 
     return system_prompt, user_prompt

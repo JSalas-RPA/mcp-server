@@ -20,6 +20,8 @@ Thumbs.db
 *.log
 factura_process.log
 resultado_proceso.json
+data/resultado_flujo.json
+data/execution_logs/
 
 # Archivos temporales
 *.tmp
