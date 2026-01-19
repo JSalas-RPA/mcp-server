@@ -48,13 +48,13 @@ def extraer_datos_factura_desde_texto(texto_factura: str) -> dict:
         raw_result = get_openai_answer(system_prompt, user_prompt)
 
         raw_result = clean_openai_json(raw_result)
+        print(f"\n📝 RESPUESTA CRUDA DE OPENAI:\n{raw_result}\n")
         datos = json.loads(raw_result)
 
         print("\n" + "=" * 70)
         print("📋 DATOS EXTRAÍDOS DE LA FACTURA (OpenAI):")
         print("=" * 70)
-        for key, value in datos.items():
-            print(f"  {key}: {value}")
+        print(json.dumps(datos, indent=2, ensure_ascii=False))
         print("=" * 70)
 
         datos_transformados = datos.copy()
@@ -65,7 +65,7 @@ def extraer_datos_factura_desde_texto(texto_factura: str) -> dict:
             "SupplierInvoiceIDByInvcgParty",
             "InvoiceGrossAmount",
             "DocumentDate",
-            "Description"
+            "Items"
         ]
         for campo in campos_requeridos:
             if campo not in datos_transformados:
