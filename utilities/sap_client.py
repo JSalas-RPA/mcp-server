@@ -38,7 +38,7 @@ SAP_CONFIG = {
     ),
     'material_doc_url': os.getenv(
         'SAP_MATERIAL_DOC_URL',
-        'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_GOODS_MOVEMENT_SRV/A_MaterialDocument'
+        'https://my408830-api.s4hana.cloud.sap/sap/opu/odata/sap/API_MATERIAL_DOCUMENT_SRV/A_MaterialDocumentItem'
     )
 }
 

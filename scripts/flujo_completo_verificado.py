@@ -45,6 +45,7 @@ from tools import (
     parsear_datos_factura,
     validar_proveedor_sap,
     obtener_ordenes_compra,
+    verificar_entrada_material,
     construir_json_factura,
     enviar_factura_sap,
 )
@@ -85,8 +86,9 @@ class FlujoVerificado:
         2: ("parsing", "Parsing de datos estructurados"),
         3: ("validacion_proveedor", "Validación de proveedor en SAP"),
         4: ("busqueda_oc", "Búsqueda de órdenes de compra"),
-        5: ("construccion_json", "Construcción de JSON para SAP"),
-        6: ("envio_sap", "Envío a SAP"),
+        5: ("verificacion_migo", "Verificación de entrada de material (MIGO)"),
+        6: ("construccion_json", "Construcción de JSON para SAP"),
+        7: ("envio_sap", "Envío a SAP"),
     }
 
     def __init__(
@@ -163,6 +165,7 @@ class FlujoVerificado:
             "datos_factura": None,
             "proveedor_info": None,
             "oc_items": None,
+            "migo_info": None,
             "factura_json": None,
         }
 
@@ -193,19 +196,26 @@ class FlujoVerificado:
             )
             self._check_exit(4)
 
-            # ETAPA 5: Construcción JSON
+            # ETAPA 5: Verificación entrada material (MIGO)
+            resultado["migo_info"] = self._ejecutar_etapa_migo(
+                resultado["datos_factura"],
+                resultado["oc_items"]
+            )
+            self._check_exit(5)
+
+            # ETAPA 6: Construcción JSON
             resultado["factura_json"] = self._ejecutar_etapa_json(
                 resultado["datos_factura"],
                 resultado["proveedor_info"],
                 resultado["oc_items"]
             )
-            self._check_exit(5)
+            self._check_exit(6)
 
-            # ETAPA 6: Envío SAP (opcional)
+            # ETAPA 7: Envío SAP (opcional)
             if enviar:
                 self._ejecutar_etapa_envio(resultado["factura_json"])
             else:
-                self._registrar_etapa_skip(6, "Envío a SAP omitido (modo simulación)")
+                self._registrar_etapa_skip(7, "Envío a SAP omitido (modo simulación)")
 
             resultado["success"] = True
 
@@ -494,6 +504,84 @@ class FlujoVerificado:
             self._registrar_etapa_error(etapa_num, nombre, descripcion, timestamp_inicio, str(e))
             raise StageFailure(f"Error en búsqueda OC: {e}")
 
+    def _ejecutar_etapa_migo(self, datos_factura: dict, oc_items: list) -> dict:
+        """Ejecuta la etapa de verificación de entrada de material (MIGO)."""
+        etapa_num = 5
+        nombre, descripcion = self.ETAPAS[etapa_num]
+        timestamp_inicio = datetime.now()
+
+        print(f"\n{'='*70}")
+        print(f"ETAPA {etapa_num}: {descripcion.upper()}")
+        print(f"{'='*70}")
+
+        try:
+            if not oc_items:
+                raise StageFailure("No hay OCs disponibles para verificar MIGO")
+
+            # Obtener número de OC del primer item
+            oc_info = oc_items[0]
+            purchase_order = oc_info.get('PurchaseOrder', '')
+            purchase_order_item = oc_info.get('PurchaseOrderItem', '')
+
+            print(f"  Verificando MIGO para OC: {purchase_order}")
+            print(f"  Item OC: {purchase_order_item}")
+
+            resultado = verificar_entrada_material(
+                purchase_order,
+                purchase_order_item,
+                datos_factura,
+                oc_info
+            )
+
+            if resultado.get("status") == "not_found":
+                print(f"  ⚠️  No se encontraron entradas de material para OC {purchase_order}")
+                # No es error fatal, continuamos pero registramos warning
+                migo_info = {
+                    "status": "not_found",
+                    "purchase_order": purchase_order,
+                    "message": "No se encontraron entradas de material"
+                }
+            elif resultado.get("status") == "error":
+                raise StageFailure(f"Error en verificación MIGO: {resultado.get('error')}")
+            else:
+                migo_data = resultado["data"]
+                migo_info = {
+                    "status": "success",
+                    "purchase_order": purchase_order,
+                    "total_entradas": migo_data.get("total_entradas", 0),
+                    "entrada_seleccionada": migo_data.get("entrada_seleccionada", {})
+                }
+
+                print(f"  Entradas encontradas: {migo_info['total_entradas']}")
+                entrada = migo_info.get("entrada_seleccionada", {})
+                if entrada:
+                    print(f"  Entrada seleccionada:")
+                    print(f"    - Documento: {entrada.get('ReferenceDocument', 'N/A')}")
+                    print(f"    - Año: {entrada.get('ReferenceDocumentFiscalYear', 'N/A')}")
+                    print(f"    - Item: {entrada.get('ReferenceDocumentItem', 'N/A')}")
+
+            # Registrar etapa (sin verificación específica por ahora)
+            # Nota: MIGO no encontrado no es error bloqueante, se registra como SUCCESS
+            stage_result = StageResult(
+                etapa=etapa_num,
+                nombre=nombre,
+                descripcion=descripcion,
+                timestamp_inicio=timestamp_inicio,
+                timestamp_fin=datetime.now(),
+                duracion_ms=int((datetime.now() - timestamp_inicio).total_seconds() * 1000),
+                status=StageStatus.SUCCESS,
+                data={"migo_info": migo_info}
+            )
+            self.execution_logger.add_stage_result(stage_result)
+
+            return migo_info
+
+        except StageFailure:
+            raise
+        except Exception as e:
+            self._registrar_etapa_error(etapa_num, nombre, descripcion, timestamp_inicio, str(e))
+            raise StageFailure(f"Error en verificación MIGO: {e}")
+
     def _ejecutar_etapa_json(
         self,
         datos_factura: dict,
@@ -501,7 +589,7 @@ class FlujoVerificado:
         oc_items: list
     ) -> dict:
         """Ejecuta la etapa de construcción de JSON."""
-        etapa_num = 5
+        etapa_num = 6
         nombre, descripcion = self.ETAPAS[etapa_num]
         timestamp_inicio = datetime.now()
 
@@ -551,7 +639,7 @@ class FlujoVerificado:
 
     def _ejecutar_etapa_envio(self, factura_json: dict) -> dict:
         """Ejecuta la etapa de envío a SAP."""
-        etapa_num = 6
+        etapa_num = 7
         nombre, descripcion = self.ETAPAS[etapa_num]
         timestamp_inicio = datetime.now()
 
@@ -685,7 +773,7 @@ Ejemplos:
     parser.add_argument("--enviar", "-e", action="store_true", help="Enviar a SAP")
     parser.add_argument("--no-comparar-ocr", action="store_true", help="No comparar OCRs")
     parser.add_argument("--no-exit-on-fail", action="store_true", help="Continuar aunque falle verificación")
-    parser.add_argument("--exit-after", type=int, choices=[1, 2, 3, 4, 5, 6], help="Terminar después de etapa N")
+    parser.add_argument("--exit-after", type=int, choices=[1, 2, 3, 4, 5, 6, 7], help="Terminar después de etapa N")
     parser.add_argument("--ground-truth", help="Ruta a archivo de ground truth")
 
     args = parser.parse_args()

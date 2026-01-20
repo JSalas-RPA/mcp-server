@@ -31,6 +31,8 @@ from services.sap_operations import (
     obtener_proveedores_sap,
     buscar_proveedor_en_sap,
     obtener_ordenes_compra_proveedor,
+    obtener_entradas_material_por_oc,
+    validar_y_seleccionar_entrada_material,
     construir_json_factura_sap,
     enviar_factura_a_sap,
 )
@@ -249,6 +251,84 @@ def obtener_ordenes_compra(
 
     except Exception as e:
         logger.error(f"Error al obtener OCs: {e}")
+        return {"status": "error", "error": str(e)}
+
+def verificar_entrada_material(
+    purchase_order: str,
+    purchase_order_item: str = "",
+    factura_datos: dict = None,
+    oc_info: dict = None
+) -> dict:
+    """
+    [ACTIVA] Verifica la entrada de material (MIGO) para una orden de compra.
+
+    Busca las entradas de material asociadas a la OC y selecciona
+    la más apropiada para la factura.
+
+    Args:
+        purchase_order: Número de orden de compra (ej: "4500000098")
+        purchase_order_item: Ítem de la OC (opcional, ej: "00010")
+        factura_datos: Datos de la factura (opcional, para validación adicional)
+        oc_info: Información de la OC seleccionada (opcional)
+
+    Returns:
+        dict con keys:
+            - status: "success", "not_found" o "error"
+            - data: información de la entrada de material (si success)
+                - entradas_encontradas: lista de todas las entradas
+                - entrada_seleccionada: entrada seleccionada para la factura
+            - error: mensaje de error (si error/not_found)
+    """
+    try:
+        logger.info(f"Verificando entrada de material para OC: {purchase_order}")
+
+        if not purchase_order:
+            return {
+                "status": "error",
+                "error": "No se proporcionó número de orden de compra"
+            }
+
+        # Obtener entradas de material de SAP
+        entradas = obtener_entradas_material_por_oc(
+            purchase_order,
+            purchase_order_item
+        )
+
+        if not entradas:
+            return {
+                "status": "not_found",
+                "error": f"No se encontraron entradas de material para OC {purchase_order}"
+            }
+
+        # Preparar oc_info si no se proporcionó
+        if not oc_info:
+            oc_info = {
+                "PurchaseOrder": purchase_order,
+                "PurchaseOrderItem": purchase_order_item or ""
+            }
+
+        # Preparar factura_datos si no se proporcionó
+        if not factura_datos:
+            factura_datos = {}
+
+        # Seleccionar la entrada más apropiada
+        entrada_seleccionada = validar_y_seleccionar_entrada_material(
+            factura_datos,
+            oc_info,
+            entradas
+        )
+
+        return {
+            "status": "success",
+            "data": {
+                "entradas_encontradas": entradas,
+                "total_entradas": len(entradas),
+                "entrada_seleccionada": entrada_seleccionada
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error al verificar entrada de material: {e}")
         return {"status": "error", "error": str(e)}
 
 
@@ -529,6 +609,7 @@ def procesar_factura_completa(texto_factura: str) -> dict:
 # VALIDACIÓN SAP:
 #   - validar_proveedor_sap(nombre, nit) -> [ACTIVA]
 #   - obtener_ordenes_compra(supplier_code, descripcion, monto, tax_code) -> [ACTIVA]
+#   - verificar_entrada_material(purchase_order, purchase_order_item, factura_datos, oc_info) -> [ACTIVA]
 #
 # CONSTRUCCIÓN/ENVÍO:
 #   - construir_json_factura(factura_datos, proveedor_info, oc_items) -> [ACTIVA]

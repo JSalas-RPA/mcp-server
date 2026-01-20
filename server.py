@@ -7,6 +7,7 @@
 #   - parsear_factura: Estructura datos desde texto OCR
 #   - validar_proveedor: Valida proveedor en SAP
 #   - buscar_ordenes_compra: Obtiene OCs de un proveedor
+#   - verificar_migo: Verifica entrada de material (MIGO) para OC
 #   - construir_json: Construye JSON para SAP
 #   - enviar_a_sap: Envía factura a SAP
 #
@@ -26,6 +27,7 @@ from tools import (
     parsear_datos_factura,
     validar_proveedor_sap,
     obtener_ordenes_compra,
+    verificar_entrada_material,
     construir_json_factura,
     enviar_factura_sap,
 )
@@ -126,6 +128,31 @@ def buscar_ordenes_compra(
     return resultado
 
 
+@mcp.tool()
+def verificar_migo(
+    purchase_order: str,
+    purchase_order_item: str = "",
+    factura_datos: dict = None,
+    oc_info: dict = None
+) -> dict:
+    """
+    Verifica la entrada de material (MIGO) para una orden de compra.
+
+    Args:
+        purchase_order: Número de orden de compra (ej: "4500000098")
+        purchase_order_item: Ítem de la OC (opcional)
+        factura_datos: Datos de la factura (opcional)
+        oc_info: Información de la OC seleccionada (opcional)
+
+    Returns:
+        dict con status (success/not_found/error), data (entradas de material) o error
+    """
+    logger.info(f"Tool 'verificar_migo' llamada con purchase_order={purchase_order}")
+    resultado = verificar_entrada_material(purchase_order, purchase_order_item, factura_datos, oc_info)
+    logger.info(f"Resultado: {resultado.get('status')}")
+    return resultado
+
+
 # ============================================================================
 # TOOLS DE CONSTRUCCIÓN Y ENVÍO
 # ============================================================================
@@ -173,7 +200,7 @@ def enviar_a_sap(factura_json: dict) -> dict:
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     logger.info(f"MCP server iniciando en puerto {port}")
-    logger.info("Tools activas: extraer_texto, parsear_factura, validar_proveedor, buscar_ordenes_compra, construir_json, enviar_a_sap")
+    logger.info("Tools activas: extraer_texto, parsear_factura, validar_proveedor, buscar_ordenes_compra, verificar_migo, construir_json, enviar_a_sap")
     asyncio.run(
         mcp.run_async(
             transport="streamable-http",

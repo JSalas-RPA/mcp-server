@@ -105,8 +105,7 @@ def get_OC_validator_prompt(descripcion_factura, monto_factura, supplier_code, o
       "PurchaseOrderItem": "número de item (ej: 00010)",
       "PurchaseOrderQuantityUnit": "unidad de medida EJ: EA, KG, L, PC, etc."
     }
-    
-    Si no hay coincidencia, retorna: {}
+
     """
     
     user_prompt = f"""Datos de la factura:

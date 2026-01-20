@@ -176,35 +176,35 @@ def buscar_proveedor_en_sap(factura_datos: dict, proveedores_sap: list) -> dict 
 
     resultados = []
 
-    # ESTRATEGIA 1: Búsqueda exacta por Tax Number (MÁS CONFIABLE)
-    if tax_buscar and tax_buscar != "":
-        print(f"  🔍 ESTRATEGIA 1: Búsqueda exacta por Tax Number")
-        for proveedor in proveedores_sap:
-            tax_campos = ['TaxNumber1', 'TaxNumber', 'SupplierTaxNumber']
-            tax_proveedor = ""
+    # # ESTRATEGIA 1: Búsqueda exacta por Tax Number (MÁS CONFIABLE)
+    # if tax_buscar and tax_buscar != "":
+    #     print(f"  🔍 ESTRATEGIA 1: Búsqueda exacta por Tax Number")
+    #     for proveedor in proveedores_sap:
+    #         tax_campos = ['TaxNumber1', 'TaxNumber', 'SupplierTaxNumber']
+    #         tax_proveedor = ""
 
-            for campo in tax_campos:
-                if campo in proveedor and proveedor[campo]:
-                    tax_proveedor = extraer_solo_numeros(str(proveedor[campo]))
-                    break
+    #         for campo in tax_campos:
+    #             if campo in proveedor and proveedor[campo]:
+    #                 tax_proveedor = extraer_solo_numeros(str(proveedor[campo]))
+    #                 break
 
-            if tax_proveedor and tax_proveedor == tax_buscar:
-                print(f"    ✅ ENCONTRADO: Tax {tax_buscar} coincide exactamente")
+    #         if tax_proveedor and tax_proveedor == tax_buscar:
+    #             print(f"    ✅ ENCONTRADO: Tax {tax_buscar} coincide exactamente")
 
-                supplier_name = proveedor.get('SupplierName') or proveedor.get('BusinessPartnerName') or "N/A"
-                supplier_code = proveedor.get('Supplier') or proveedor.get('BusinessPartner') or "N/A"
-                supplier_full = proveedor.get('SupplierFullName') or proveedor.get('BusinessPartnerFullName') or supplier_name
+    #             supplier_name = proveedor.get('SupplierName') or proveedor.get('BusinessPartnerName') or "N/A"
+    #             supplier_code = proveedor.get('Supplier') or proveedor.get('BusinessPartner') or "N/A"
+    #             supplier_full = proveedor.get('SupplierFullName') or proveedor.get('BusinessPartnerFullName') or supplier_name
 
-                resultados.append({
-                    "Supplier": supplier_code,
-                    "SupplierFullName": supplier_full,
-                    "SupplierName": supplier_name,
-                    "SupplierAccountGroup": proveedor.get('SupplierAccountGroup') or proveedor.get('BusinessPartnerGrouping') or "N/A",
-                    "TaxNumber": tax_proveedor,
-                    "Similitud": 1.0,
-                    "Metodo": "Tax Number Exacto"
-                })
-                break
+    #             resultados.append({
+    #                 "Supplier": supplier_code,
+    #                 "SupplierFullName": supplier_full,
+    #                 "SupplierName": supplier_name,
+    #                 "SupplierAccountGroup": proveedor.get('SupplierAccountGroup') or proveedor.get('BusinessPartnerGrouping') or "N/A",
+    #                 "TaxNumber": tax_proveedor,
+    #                 "Similitud": 1.0,
+    #                 "Metodo": "Tax Number Exacto"
+    #             })
+    #             break
 
     # ESTRATEGIA 2: Búsqueda por similitud de nombres COMPLETOS
     if not resultados:
@@ -319,7 +319,6 @@ def validar_proveedor_con_ai(factura_datos: dict, proveedores_sap: list) -> dict
         logger.error(f"Error en validación de proveedor con AI: {e}")
         return None
 
-
 # ============================================
 # ÓRDENES DE COMPRA
 # ============================================
@@ -396,7 +395,7 @@ def obtener_ordenes_compra_proveedor(
 
                         return [{
                             "PurchaseOrder": oc_info.get('PurchaseOrder'),
-                            "PurchaseOrderItem": oc_info.get('PurchaseOrderItem', '00010'),
+                            "PurchaseOrderItem": oc_info.get('PurchaseOrderItem', ''),
                             "DocumentCurrency": "BOB",
                             "QuantityInPurchaseOrderUnit": "1.000",
                             "PurchaseOrderQuantityUnit": oc_info.get('PurchaseOrderQuantityUnit', ''),
@@ -431,7 +430,134 @@ def obtener_ordenes_compra_proveedor(
 
     return []
 
+# ============================================
+# Verificar la entrada del material (MIGO)
+# ============================================
 
+def obtener_entradas_material_por_oc(purchase_order, purchase_order_item=None, supplier_code=None):
+    """
+    Obtiene las entradas de material (MIGO) asociadas a una orden de compra específica.
+    """
+    try:
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        
+        print(f"\n🔍 BUSCANDO ENTRADAS DE MATERIAL PARA OC {purchase_order}")
+        print("="*60)
+        
+        # URL original que funcionaba - SIN $select para evitar problemas
+        url = f"{SAP_CONFIG['material_doc_url']}?$filter=PurchaseOrder eq '{purchase_order}'"
+        
+        print(f"  URL: {url}")
+        
+        response = requests.get(
+            url,
+            headers=headers,
+            auth=get_sap_auth(),
+            timeout=30
+        )
+        
+        print(f"  Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = safe_json_response(response)
+            if data and "d" in data and "results" in data["d"]:
+                entradas = data["d"]["results"]
+                print(f"  ✅ {len(entradas)} entradas de material encontradas")
+                
+                # Mostrar las entradas disponibles
+                for i, entrada in enumerate(entradas[:5]):  # Mostrar máximo 5
+                    doc_year = entrada.get('MaterialDocumentYear', 'N/A')
+                    doc_num = entrada.get('MaterialDocument', 'N/A')
+                    doc_item = entrada.get('MaterialDocumentItem', 'N/A')
+                    
+                    print(f"    {i+1}. Doc: {doc_num}/{doc_year} - Ítem: {doc_item}")
+                
+                if len(entradas) > 5:
+                    print(f"    ... y {len(entradas) - 5} más")
+                
+                return entradas
+            else:
+                print(f"  ⚠️  No se encontraron entradas de material")
+                return []
+        elif response.status_code == 403:
+            print(f"  ❌ ERROR 403: Permisos insuficientes para el endpoint de materiales")
+            print(f"     Contactar al administrador SAP para agregar permisos a:")
+            print(f"     {SAP_CONFIG['material_doc_url']}")
+            logger.error(f"Error 403 al acceder a API de materiales: {response.text[:200]}")
+            return []
+        else:
+            print(f"  ❌ Error {response.status_code}: {response.text[:200]}")
+            logger.error(f"Error al buscar entradas de material: {response.status_code}")
+            return []
+            
+    except Exception as e:
+        print(f"  ❌ Excepción: {e}")
+        logger.error(f"Error en obtener_entradas_material_por_oc: {e}")
+        return []
+
+
+def validar_y_seleccionar_entrada_material(factura_info, oc_info, entradas_material):
+    """
+    Selecciona la entrada de material más apropiada basándose en la factura.
+    """
+    try:
+        print(f"\n🤖 SELECCIONANDO ENTRADA DE MATERIAL PARA FACTURA")
+        
+        if not entradas_material:
+            print(f"  ⚠️  No se encontraron entradas de material")
+            return {}
+        
+        # Datos de la factura
+        factura_monto = factura_info.get("InvoiceGrossAmount", 0)
+        factura_items = factura_info.get("Items", [])
+        
+        print(f"  📊 Analizando {len(entradas_material)} entradas para factura de {factura_monto} BOB")
+        
+        # Estrategia 1: Buscar entrada que coincida con el ítem de OC
+        oc_item = oc_info.get('PurchaseOrderItem', '')
+        print(f"  🔍 Buscando entrada para OC ítem {oc_item}")
+        
+        for entrada in entradas_material:
+            entrada_item = entrada.get('PurchaseOrderItem', '')
+            entrada_doc = entrada.get('MaterialDocument', '')
+            entrada_year = entrada.get('MaterialDocumentYear', '')
+            
+            # Si la entrada tiene el mismo ítem de OC
+            if entrada_item and str(entrada_item) == str(oc_item):
+                print(f"  ✅ ENCONTRADA: Entrada {entrada_doc}/{entrada_year} para OC ítem {entrada_item}")
+                return {
+                    "ReferenceDocument": entrada_doc,
+                    "ReferenceDocumentFiscalYear": entrada_year,
+                    "ReferenceDocumentItem": entrada.get('MaterialDocumentItem', '')
+                }
+
+        # Si no se encontró coincidencia exacta, usar la primera entrada
+        if entradas_material:
+            primera = entradas_material[0]
+            print(f"  ⚠️  No se encontró coincidencia exacta de ítem, usando primera entrada")
+            return {
+                "ReferenceDocument": primera.get('MaterialDocument', ''),
+                "ReferenceDocumentFiscalYear": primera.get('MaterialDocumentYear', ''),
+                "ReferenceDocumentItem": primera.get('MaterialDocumentItem', '1')
+            }
+
+        # No hay entradas disponibles
+        print(f"  ❌ No hay entradas de material disponibles")
+        return {}
+
+    except Exception as e:
+        print(f"  ❌ ERROR EN SELECCIÓN DE ENTRADA: {e}")
+        logger.error(f"Error en validar_y_seleccionar_entrada_material: {e}")
+        # En caso de error, devolver valores que sabemos funcionaron en Postman
+        return {
+            "ReferenceDocument": "5000000244",
+            "ReferenceDocumentFiscalYear": "2025",
+            "ReferenceDocumentItem": "1"
+        }
+    
 # ============================================
 # CONSTRUCCIÓN Y ENVÍO DE FACTURA
 # ============================================

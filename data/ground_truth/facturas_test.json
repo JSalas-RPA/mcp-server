@@ -63,13 +63,13 @@
         "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
       },
       "proveedor_esperado": {
-        "Supplier": "0000001234",
+        "Supplier": "1000161",
         "SupplierName": "TEST2 CHILE NIBOL",
         "similitud_minima": 0.8
       },
       "oc_esperado": {
         "debe_encontrar_oc": true,
-        "PurchaseOrder": "4500000100",
+        "PurchaseOrder": "4500000098",
         "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
       },
       "json_sap_esperado": {
@@ -103,13 +103,133 @@
         "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
       },
       "proveedor_esperado": {
-        "Supplier": "0000001234",
+        "Supplier": "1000060",
         "SupplierName": "Laboratorios Pharma",
-        "similitud_minima": 0.8
+        "similitud_minima": 0.9
       },
       "oc_esperado": {
         "debe_encontrar_oc": true,
-        "PurchaseOrder": "4500000100",
+        "PurchaseOrder": "4500000104",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+    "vijosa-melvin-07-01.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Vijosa",
+        "SupplierTaxNumber": "5037461",
+        "SupplierInvoiceIDByInvcgParty": "0801202602",
+        "DocumentDate": "2025-12-22T00:00:00",
+        "InvoiceGrossAmount": 25000.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000170",
+        "SupplierName": "Laboratorios Vijosa",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000105",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+    "vijosa-melvin-07-01-2.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Vijosa",
+        "SupplierTaxNumber": "5037461",
+        "SupplierInvoiceIDByInvcgParty": "0801202605",
+        "DocumentDate": "2025-12-22T00:00:00",
+        "InvoiceGrossAmount": 17500.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000170",
+        "SupplierName": "Laboratorios Vijosa",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000105",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+    "vijosa-melvin-07-01-3.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Vijosa",
+        "SupplierTaxNumber": "5037461",
+        "SupplierInvoiceIDByInvcgParty": "0801202603",
+        "DocumentDate": "2025-12-22T00:00:00",
+        "InvoiceGrossAmount": 5000.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000170",
+        "SupplierName": "Laboratorios Vijosa",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000105",
         "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
       },
       "json_sap_esperado": {
