@@ -176,35 +176,35 @@ def buscar_proveedor_en_sap(factura_datos: dict, proveedores_sap: list) -> dict 
 
     resultados = []
 
-    # # ESTRATEGIA 1: Búsqueda exacta por Tax Number (MÁS CONFIABLE)
-    # if tax_buscar and tax_buscar != "":
-    #     print(f"  🔍 ESTRATEGIA 1: Búsqueda exacta por Tax Number")
-    #     for proveedor in proveedores_sap:
-    #         tax_campos = ['TaxNumber1', 'TaxNumber', 'SupplierTaxNumber']
-    #         tax_proveedor = ""
+    # ESTRATEGIA 1: Búsqueda exacta por Tax Number (MÁS CONFIABLE)
+    if tax_buscar and tax_buscar != "":
+        print(f"  🔍 ESTRATEGIA 1: Búsqueda exacta por Tax Number")
+        for proveedor in proveedores_sap:
+            tax_campos = ['TaxNumber1', 'TaxNumber', 'SupplierTaxNumber']
+            tax_proveedor = ""
 
-    #         for campo in tax_campos:
-    #             if campo in proveedor and proveedor[campo]:
-    #                 tax_proveedor = extraer_solo_numeros(str(proveedor[campo]))
-    #                 break
+            for campo in tax_campos:
+                if campo in proveedor and proveedor[campo]:
+                    tax_proveedor = extraer_solo_numeros(str(proveedor[campo]))
+                    break
 
-    #         if tax_proveedor and tax_proveedor == tax_buscar:
-    #             print(f"    ✅ ENCONTRADO: Tax {tax_buscar} coincide exactamente")
+            if tax_proveedor and tax_proveedor == tax_buscar:
+                print(f"    ✅ ENCONTRADO: Tax {tax_buscar} coincide exactamente")
 
-    #             supplier_name = proveedor.get('SupplierName') or proveedor.get('BusinessPartnerName') or "N/A"
-    #             supplier_code = proveedor.get('Supplier') or proveedor.get('BusinessPartner') or "N/A"
-    #             supplier_full = proveedor.get('SupplierFullName') or proveedor.get('BusinessPartnerFullName') or supplier_name
+                supplier_name = proveedor.get('SupplierName') or proveedor.get('BusinessPartnerName') or "N/A"
+                supplier_code = proveedor.get('Supplier') or proveedor.get('BusinessPartner') or "N/A"
+                supplier_full = proveedor.get('SupplierFullName') or proveedor.get('BusinessPartnerFullName') or supplier_name
 
-    #             resultados.append({
-    #                 "Supplier": supplier_code,
-    #                 "SupplierFullName": supplier_full,
-    #                 "SupplierName": supplier_name,
-    #                 "SupplierAccountGroup": proveedor.get('SupplierAccountGroup') or proveedor.get('BusinessPartnerGrouping') or "N/A",
-    #                 "TaxNumber": tax_proveedor,
-    #                 "Similitud": 1.0,
-    #                 "Metodo": "Tax Number Exacto"
-    #             })
-    #             break
+                resultados.append({
+                    "Supplier": supplier_code,
+                    "SupplierFullName": supplier_full,
+                    "SupplierName": supplier_name,
+                    "SupplierAccountGroup": proveedor.get('SupplierAccountGroup') or proveedor.get('BusinessPartnerGrouping') or "N/A",
+                    "TaxNumber": tax_proveedor,
+                    "Similitud": 1.0,
+                    "Metodo": "Tax Number Exacto"
+                })
+                break
 
     # ESTRATEGIA 2: Búsqueda por similitud de nombres COMPLETOS
     if not resultados:
@@ -578,6 +578,8 @@ def construir_json_factura_sap(
         raise ValueError("Información del proveedor no disponible")
 
     fecha_documento = format_sap_date(factura_datos.get("DocumentDate"))
+    fecha_actual = "2025-12-21"
+    fecha_actual = format_sap_date(fecha_actual)
     invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
 
     if not invoice_id or invoice_id == "0":
@@ -607,7 +609,7 @@ def construir_json_factura_sap(
     factura_json = {
         "CompanyCode": "1000",
         "DocumentDate": fecha_documento,
-        "PostingDate": fecha_documento,
+        "PostingDate": fecha_actual,
         "SupplierInvoiceIDByInvcgParty": invoice_id,
         "InvoicingParty": proveedor_info.get("Supplier", ""),
         "AssignmentReference": cod_autorizacion,
@@ -633,6 +635,9 @@ def construir_json_factura_sap(
             "SupplierInvoiceItem": str(idx).zfill(5),
             "PurchaseOrder": oc.get("PurchaseOrder", ""),
             "PurchaseOrderItem": oc.get("PurchaseOrderItem", "00010"),
+            "ReferenceDocument": oc.get("ReferenceDocument", "5000000244"),
+            "ReferenceDocumentFiscalYear": oc.get("ReferenceDocumentFiscalYear", "2025"),
+            "ReferenceDocumentItem": oc.get("ReferenceDocumentItem", "1"),
             "DocumentCurrency": "BOB",
             "QuantityInPurchaseOrderUnit": "1.000",
             "PurchaseOrderQuantityUnit": oc.get("PurchaseOrderQuantityUnit", ""),

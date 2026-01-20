@@ -54,6 +54,7 @@ def get_transcript_document(path_doc):
     text = ""
     for doc in documents:
         text += f"\n {doc.text} \n"
+    print("Texto extraído con LlamaParse Document OCR:", text)
     return text
 
 
