@@ -95,7 +95,7 @@ def extract_text_from_first_page(file_path: str) -> str:
         if len(text_content) < 50:
             return "ERROR:_PDF_SIN_TEXTO_O_ESCANEADO"
 
-        print("Texto extraído de la primera página con PyMuPDF:", text_content)
+        print("Texto extraído con PyMuPDF:", text_content)
         return text_content
     except Exception as e:
         return f"ERROR_PROCESAMIENTO: {str(e)}"

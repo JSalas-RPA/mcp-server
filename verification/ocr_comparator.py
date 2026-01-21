@@ -6,7 +6,8 @@ Comparación de resultados de diferentes motores OCR.
 import re
 import logging
 from difflib import SequenceMatcher
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
+from collections import Counter
 
 from .schemas import OCRComparison
 
@@ -87,19 +88,33 @@ class OCRComparator:
         diferencias = []
         recomendacion = None
 
+        # Solo procedemos si ambos textos existen
         if texto_principal and texto_alternativo:
-            similitud = self._calculate_similarity(texto_principal, texto_alternativo)
+            # 1. Normalizar a LISTAS de palabras
+            tokens_prim = self._normalize_to_list(texto_principal)
+            tokens_alt = self._normalize_to_list(texto_alternativo)
+            # 2. Calcular similitud:
+            sim_secuencial = self._calculate_list_similarity(tokens_prim, tokens_alt)
+            sim_contenido = self._calculate_bag_of_words_similarity(tokens_prim, tokens_alt)
+            # Lógica de decisión
+            if sim_contenido > sim_secuencial and sim_contenido > 0.8:
+                similitud = sim_contenido
+                logger.info(f"Usando similitud de contenido (Bolsa de Palabras): {sim_contenido:.2%} vs Secuencial: {sim_secuencial:.2%}")
+            else:
+                similitud = sim_secuencial
+            # 3. Encontrar diferencias (usando los textos originales para contexto)
             diferencias = self._find_key_differences(texto_principal, texto_alternativo)
+            # 4. Generar recomendación
             recomendacion = self._make_recommendation(
-                texto_principal, texto_alternativo, primary_method, alternative_method
+                texto_principal, texto_alternativo, primary_method, alternative_method, similitud
             )
-        elif texto_principal and not texto_alternativo:
-            recomendacion = f"Solo {primary_method} produjo resultado. PDF probablemente escaneado."
-        elif not texto_principal and texto_alternativo:
-            recomendacion = f"Solo {alternative_method} produjo resultado. Verificar configuración de {primary_method}."
-        else:
-            recomendacion = "Ningún método produjo resultado. Verificar calidad del PDF."
+            
+        elif texto_principal:
+            recomendacion = f"Solo {primary_method} extrajo texto."
+        elif texto_alternativo:
+            recomendacion = f"Solo {alternative_method} extrajo texto."
 
+        # Crear objeto de resultado
         comparison = OCRComparison(
             ejecutada=True,
             ocr_principal=primary_method,
@@ -107,74 +122,97 @@ class OCRComparator:
             similitud_texto=similitud,
             diferencias_clave=diferencias,
             recomendacion=recomendacion,
-            texto_principal_preview=texto_principal[:500] if texto_principal else None,
-            texto_alternativo_preview=texto_alternativo[:500] if texto_alternativo else None,
+            texto_principal_preview=texto_principal[:200] if texto_principal else "",
+            texto_alternativo_preview=texto_alternativo[:200] if texto_alternativo else ""
         )
 
         return comparison, texto_principal, texto_alternativo
 
-    def _calculate_similarity(self, text1: str, text2: str) -> float:
-        """Calcula similitud entre dos textos (0.0 a 1.0)."""
-        # Normalizar textos
-        t1 = self._normalize_text(text1)
-        t2 = self._normalize_text(text2)
-
-        return SequenceMatcher(None, t1, t2).ratio()
-
-    def _normalize_text(self, text: str) -> str:
-        """Normaliza texto para comparación."""
-        # Convertir a minúsculas
+    def _normalize_to_list(self, text: str) -> List[str]:
+        """
+        Convierte el texto en una lista limpia de palabras.
+        Rompe el texto por espacios y saltos de línea, elimina vacíos.
+        """
+        if not text:
+            return []
+        
         text = text.lower()
-        # Remover espacios múltiples
-        text = re.sub(r'\s+', ' ', text)
-        # Remover caracteres especiales excepto números y letras
-        text = re.sub(r'[^\w\s]', '', text)
-        return text.strip()
+        text = text.replace('\n', ' ').replace('\t', ' ')
+        text = re.sub(r'[^\w\s.,]', '', text)
+        words = text.split()
 
-    def _find_key_differences(self, text1: str, text2: str, max_diffs: int = 5) -> list[str]:
-        """Encuentra diferencias clave entre dos textos."""
+        return [w for w in words if w.strip()]
+
+    def _calculate_list_similarity(self, list1: List[str], list2: List[str]) -> float:
+        """Calcula la similitud respetando el ORDEN de las palabras."""
+        if not list1 and not list2: return 1.0
+        if not list1 or not list2: return 0.0
+        matcher = SequenceMatcher(None, list1, list2, autojunk=False)
+        return matcher.ratio()
+
+    def _calculate_bag_of_words_similarity(self, list1: List[str], list2: List[str]) -> float:
+        """
+        Calcula la similitud IGNORANDO el orden (Histograma de palabras).
+        Ideal para comparar PyMuPDF (stream order) vs Vision (layout order).
+        """
+        if not list1 and not list2: return 1.0
+        if not list1 or not list2: return 0.0
+
+        c1 = Counter(list1)
+        c2 = Counter(list2)
+        
+        intersection = sum((c1 & c2).values())
+
+        total_elements = sum(c1.values()) + sum(c2.values())
+        
+        if total_elements == 0: return 0.0
+        
+        return 2.0 * intersection / total_elements
+
+    def _find_key_differences(self, text1: str, text2: str) -> List[str]:
+        """Busca diferencias en valores clave específicos (NIT, Total, Fechas)."""
         diferencias = []
-
-        # Buscar patrones importantes
+        # Definimos patrones regex para buscar datos clave
         patrones = [
-            (r'NIT[:\s]*(\d+)', 'NIT'),
-            (r'Total[:\s]*([\d,\.]+)', 'Total'),
-            (r'Factura[:\s#N°]*(\d+)', 'N° Factura'),
-            (r'Fecha[:\s]*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})', 'Fecha'),
+            (r'NIT[:\s.]*(\d+)', 'NIT'),
+            (r'Total[:\s$]*([\d,.]+)', 'Total'),
+            (r'Fecha[:\s]*(\d{2,4}[-/]\d{2}[-/]\d{2,4})', 'Fecha'),
         ]
 
-        for patron, nombre in patrones:
-            match1 = re.search(patron, text1, re.IGNORECASE)
-            match2 = re.search(patron, text2, re.IGNORECASE)
+        for regex, label in patrones:
+            val1 = re.search(regex, text1, re.IGNORECASE)
+            val2 = re.search(regex, text2, re.IGNORECASE)
 
-            val1 = match1.group(0) if match1 else "No encontrado"
-            val2 = match2.group(0) if match2 else "No encontrado"
+            v1_str = val1.group(1) if val1 else "No encontrado"
+            v2_str = val2.group(1) if val2 else "No encontrado"
 
-            if val1 != val2:
-                diferencias.append(f"{nombre}: Principal='{val1}' vs Alternativo='{val2}'")
+            # Normalización simple para comparar valores (quitar comas en números, etc)
+            clean_v1 = v1_str.replace(',', '').replace('.', '')
+            clean_v2 = v2_str.replace(',', '').replace('.', '')
 
-        return diferencias[:max_diffs]
+            if clean_v1 != clean_v2:
+                diferencias.append(f"{label}: '{v1_str}' vs '{v2_str}'")
 
-    def _make_recommendation(
-        self,
-        text1: str,
-        text2: str,
-        method1: str,
-        method2: str
-    ) -> str:
-        """Genera recomendación basada en la comparación."""
-        len1 = len(text1) if text1 else 0
-        len2 = len(text2) if text2 else 0
+        return diferencias
 
-        # Verificar si PyMuPDF extrajo poco texto (PDF escaneado)
-        if method2 == "pymupdf" and len2 < 100 and len1 > 500:
-            return f"Usar {method1}. El PDF parece ser escaneado (PyMuPDF extrajo poco texto)."
+    def _make_recommendation(self, t1, t2, m1, m2, similarity) -> str:
+        """Genera una recomendación inteligente."""
+        if similarity > 0.95:
+            return "Resultados casi idénticos. Usar cualquiera."
+        
+        if similarity > 0.8:
+            return f"Alta similitud ({similarity:.2%}). Contenido verificado."
 
-        # Si ambos tienen contenido similar, preferir el más completo
-        if len1 >= len2:
-            return f"Usar {method1} (texto más completo: {len1} vs {len2} caracteres)."
-        else:
-            return f"Considerar {method2} (texto más completo: {len2} vs {len1} caracteres)."
+        # Si son muy diferentes, preferir el que tenga más "contenido útil" (palabras)
+        len1 = len(t1.split())
+        len2 = len(t2.split())
+        
+        if len1 > len2 * 1.5:
+            return f"Usar {m1}. Parece haber extraído mucho más contenido ({len1} palabras vs {len2})."
+        elif len2 > len1 * 1.5:
+            return f"Usar {m2}. Parece haber extraído mucho más contenido ({len2} palabras vs {len1})."
+            
+        return f"Revisión manual requerida. Similitud baja ({similarity:.2%})."
 
     def get_combined_context(
         self,
