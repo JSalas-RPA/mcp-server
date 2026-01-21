@@ -94,7 +94,7 @@ class FlujoVerificado:
     def __init__(
         self,
         ground_truth_path: str = None,
-        comparar_ocr: bool = True,
+        comparar_ocr: bool = False,
         exit_on_failure: bool = True,
         exit_after_stage: int = None,
     ):

@@ -154,7 +154,7 @@ def validar_proveedor_sap(nombre_proveedor: str, nit_proveedor: str = "") -> dic
 
     Estrategias de búsqueda (en orden):
     1. Coincidencia exacta por NIT/Tax Number
-    2. Similitud de nombres (>=60%)
+    2. Similitud de nombres (>=95%)
     3. Coincidencia de palabras clave
     4. Validación con AI (fallback)
 

@@ -367,8 +367,8 @@ def obtener_ordenes_compra_proveedor(
 
                     for i, oc in enumerate(oc_list):
                         oc_num = oc.get('PurchaseOrder', 'N/A')
-                        oc_item = oc.get('PurchaseOrderItem', 'N/A')
-                        oc_status = oc.get('PurchaseOrderProcessingStatus', 'N/A')
+                        oc_item = oc.get('Language', 'N/A')
+                        oc_status = oc.get('PaymentTerms', 'N/A')
                         oc_date = oc.get('CreationDate', 'N/A')
 
                         print(f"    {i + 1:2d}. OC: {oc_num:15} | Item: {oc_item:8} | Status: {oc_status:10} | Fecha: {oc_date}")
@@ -618,7 +618,7 @@ def construir_json_factura_sap(
         "DueCalculationBaseDate": fecha_documento,
         "TaxIsCalculatedAutomatically": True,
         "TaxDeterminationDate": fecha_documento,
-        "SupplierInvoiceStatus": "B",
+        "SupplierInvoiceStatus": "5",
         "to_SuplrInvcItemPurOrdRef": {
             "results": []
         }
