@@ -77,7 +77,7 @@ def get_transcript_document_cloud_vision(path_doc):
 
         full_text += response.full_text_annotation.text + "\n"
 
-    print("Texto extraído con Google Cloud Vision OCR:", full_text)
+    #print("Texto extraído con Google Cloud Vision OCR:", full_text)
     return full_text.strip()
 
 def extract_text_from_first_page(file_path: str) -> str:
@@ -95,7 +95,7 @@ def extract_text_from_first_page(file_path: str) -> str:
         if len(text_content) < 50:
             return "ERROR:_PDF_SIN_TEXTO_O_ESCANEADO"
 
-        print("Texto extraído con PyMuPDF:", text_content)
+        #print("Texto extraído con PyMuPDF:", text_content)
         return text_content
     except Exception as e:
         return f"ERROR_PROCESAMIENTO: {str(e)}"

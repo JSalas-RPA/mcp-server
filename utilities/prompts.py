@@ -128,6 +128,46 @@ def get_OC_validator_prompt(descripcion_factura, monto_factura, supplier_code, o
     
     return system_prompt, user_prompt
 
+def get_description_comparison_prompt(descripcion_ocr: str, descripcion_sap: str, codigo_ocr: str = "", material_sap: str = ""):
+    """
+    Prompt para que el LLM compare descripciones de productos.
+    Útil cuando los nombres varían (ej: "Aspirinita" vs "Ácido Acetilsalicílico").
+    """
+    system_prompt = """Eres un experto en productos y materiales que debe determinar si dos descripciones de productos se refieren al mismo artículo.
+
+DEBES considerar:
+1. Nombres comerciales vs nombres genéricos (ej: "Aspirina" = "Ácido Acetilsalicílico")
+2. Abreviaciones comunes (ej: "Amp" = "Ampolla", "Tab" = "Tableta")
+3. Variaciones de escritura y acentos
+4. Concentraciones y presentaciones
+5. Códigos de producto si están disponibles
+
+RESPONDE ÚNICAMENTE con un JSON:
+{
+    "match": true/false,
+    "confidence": 0.0-1.0,
+    "reason": "explicación breve"
+}
+
+- match=true si son el mismo producto o muy probablemente el mismo
+- confidence es tu nivel de confianza (0.0 a 1.0)
+- reason es una explicación breve de tu decisión"""
+
+    user_prompt = f"""Compara estas dos descripciones de productos:
+
+PRODUCTO EN FACTURA (OCR):
+- Descripción: "{descripcion_ocr}"
+- Código producto: "{codigo_ocr if codigo_ocr else 'No disponible'}"
+
+PRODUCTO EN ORDEN DE COMPRA (SAP):
+- Descripción: "{descripcion_sap}"
+- Código material: "{material_sap if material_sap else 'No disponible'}"
+
+¿Son el mismo producto?"""
+
+    return system_prompt, user_prompt
+
+
 def get_material_entry_validator_prompt(factura_info, oc_info, material_items):
     """
     Prompt para que el LLM seleccione la entrada de material correcta.

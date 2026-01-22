@@ -206,47 +206,60 @@ def validar_proveedor_sap(nombre_proveedor: str, nit_proveedor: str = "") -> dic
 
 def obtener_ordenes_compra(
     supplier_code: str,
-    descripcion_producto: str = "",
-    monto_factura: float = 0.0,
-    tax_code: str = ""
+    factura_datos: dict = None,
+    tax_code: str = "V0"
 ) -> dict:
     """
-    [ACTIVA] Obtiene órdenes de compra de un proveedor en SAP.
+    [ACTIVA] Obtiene y selecciona la mejor orden de compra de un proveedor en SAP.
 
-    Busca OCs activas para el proveedor y usa AI para seleccionar
-    la más apropiada según la descripción del producto.
+    Usa selección determinística en dos niveles:
+    - Nivel 1: Filtro por Header (status, fecha, moneda)
+    - Nivel 2: Scoring por Ítem (precio unitario, cantidad, monto, descripción)
 
     Args:
         supplier_code: Código SAP del proveedor (ej: "0000001234")
-        descripcion_producto: Descripción del producto en la factura
-        monto_factura: Monto total de la factura
+        factura_datos: Datos completos de la factura (del parseo OCR)
         tax_code: Código de impuesto (ej: "V0")
 
     Returns:
         dict con keys:
-            - status: "success", "not_found" o "error"
-            - data: lista de OCs seleccionadas (si success)
+            - status: "success", "not_found", "duplicate_requires_intervention" o "error"
+            - data: información de la OC seleccionada (si success)
+                - selected_purchase_order: ID de la OC
+                - selected_purchase_order_item: ítem de la OC
+                - needs_migo: bool indicando si requiere entrada de material
+                - match_score: puntaje de coincidencia
+                - oc_items: lista formateada para construir_json_factura_sap
             - error: mensaje de error (si error/not_found)
     """
     try:
         logger.info(f"Buscando OCs para proveedor: {supplier_code}")
 
-        oc_items = obtener_ordenes_compra_proveedor(
-            descripcion_producto,
-            monto_factura,
+        if not factura_datos:
+            factura_datos = {}
+
+        resultado_oc = obtener_ordenes_compra_proveedor(
+            factura_datos,
             supplier_code,
             tax_code
         )
 
-        if oc_items:
+        # El resultado ya viene con el formato correcto
+        if resultado_oc.get("status") == "success":
             return {
                 "status": "success",
-                "data": oc_items
+                "data": resultado_oc
+            }
+        elif resultado_oc.get("status") == "duplicate_requires_intervention":
+            return {
+                "status": "duplicate_requires_intervention",
+                "error": resultado_oc.get("error", "Múltiples OCs con score similar"),
+                "candidatos": resultado_oc.get("candidatos", [])
             }
         else:
             return {
-                "status": "not_found",
-                "error": f"No se encontraron OCs para el proveedor {supplier_code}"
+                "status": resultado_oc.get("status", "not_found"),
+                "error": resultado_oc.get("error", f"No se encontraron OCs para el proveedor {supplier_code}")
             }
 
     except Exception as e:
@@ -341,7 +354,9 @@ def verificar_entrada_material(
 def construir_json_factura(
     factura_datos: dict,
     proveedor_info: dict,
-    oc_items: list
+    oc_items: list,
+    needs_migo: bool = False,
+    reference_document: dict = None
 ) -> dict:
     """
     [ACTIVA] Construye el JSON de factura en formato SAP.
@@ -350,6 +365,8 @@ def construir_json_factura(
         factura_datos: Datos extraídos de la factura (de parsear_datos_factura)
         proveedor_info: Información del proveedor SAP (de validar_proveedor_sap)
         oc_items: Lista de OCs (de obtener_ordenes_compra)
+        needs_migo: Si True, incluye campos ReferenceDocument (requiere MIGO)
+        reference_document: Datos del documento de referencia (MIGO) si needs_migo=True
 
     Returns:
         dict con keys:
@@ -360,7 +377,13 @@ def construir_json_factura(
     try:
         logger.info("Construyendo JSON para SAP...")
 
-        factura_json = construir_json_factura_sap(factura_datos, proveedor_info, oc_items)
+        factura_json = construir_json_factura_sap(
+            factura_datos,
+            proveedor_info,
+            oc_items,
+            needs_migo=needs_migo,
+            reference_document=reference_document
+        )
 
         if factura_json:
             return {
@@ -503,44 +526,84 @@ def procesar_factura_completa(texto_factura: str) -> dict:
             resultado['message'] = error_msg
             return resultado
 
-        # Extraer descripción de los items
-        items = factura_datos.get("Items") or factura_datos.get("items") or []
-        if isinstance(items, dict):
-            items = [items]
+        # Obtener tax_code del proveedor
+        tax_code = proveedor_info.get("TaxCode", "V0")
 
-        descripcion_parts = []
-        if isinstance(items, list):
-            for it in items:
-                if not isinstance(it, dict):
-                    continue
-                for k in ("Description", "Descripcion", "ItemDescription", "description"):
-                    v = it.get(k)
-                    if v:
-                        descripcion_parts.append(str(v).strip())
-                        break
-
-        descripcion_factura = "; ".join(descripcion_parts) if descripcion_parts else factura_datos.get("Description") or factura_datos.get("description") or ""
-        monto_factura = factura_datos.get("InvoiceGrossAmount", "")
-        tax_code = proveedor_info.get("TaxCode", "")
-
-        oc_items = obtener_ordenes_compra_proveedor(
-            descripcion_factura, monto_factura, supplier_code, tax_code
+        # Llamar a la nueva función de selección de OC (determinística)
+        resultado_oc = obtener_ordenes_compra_proveedor(
+            factura_datos, supplier_code, tax_code
         )
 
-        if not oc_items:
-            error_msg = f"No se encontraron órdenes de compra para el proveedor {supplier_code}"
+        # Verificar resultado de la selección de OC
+        if resultado_oc.get("status") != "success":
+            if resultado_oc.get("status") == "duplicate_requires_intervention":
+                error_msg = "Múltiples OCs con score similar, requiere intervención manual"
+                resultado['error'] = error_msg
+                resultado['message'] = error_msg
+                resultado['candidatos_oc'] = resultado_oc.get("candidatos", [])
+            else:
+                error_msg = resultado_oc.get("error", f"No se encontraron OCs para el proveedor {supplier_code}")
             print(f"\n❌ ERROR: {error_msg}")
             logger.error(error_msg)
             resultado['error'] = error_msg
             resultado['message'] = "Factura no tiene OC asociada en SAP"
             return resultado
 
+        # Extraer datos de la OC seleccionada
+        oc_items = resultado_oc.get("oc_items", [])
+        needs_migo = resultado_oc.get("needs_migo", False)
+        match_score = resultado_oc.get("match_score", 0)
+        selected_oc = resultado_oc.get("selected_purchase_order", "")
+        selected_oc_item = resultado_oc.get("selected_purchase_order_item", "")
+
+        print(f"\n  📊 RESULTADO SELECCIÓN OC:")
+        print(f"     • OC Seleccionada: {selected_oc} - Item {selected_oc_item}")
+        print(f"     • Score: {match_score:.1f}/100")
+        print(f"     • Requiere MIGO: {'Sí' if needs_migo else 'No'}")
+
+        # PASO 3.5: Si needs_migo, obtener entrada de material
+        reference_document = None
+        if needs_migo:
+            print("\n" + "=" * 70)
+            print("3.5️⃣ VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO)")
+            print("=" * 70)
+
+            from services.sap_operations import obtener_entradas_material_por_oc, validar_y_seleccionar_entrada_material
+
+            entradas = obtener_entradas_material_por_oc(selected_oc, selected_oc_item)
+            if entradas:
+                reference_document = validar_y_seleccionar_entrada_material(
+                    factura_datos,
+                    {"PurchaseOrder": selected_oc, "PurchaseOrderItem": selected_oc_item},
+                    entradas
+                )
+                if not reference_document:
+                    error_msg = f"OC {selected_oc} requiere MIGO pero no se encontró entrada de material"
+                    print(f"\n❌ ERROR: {error_msg}")
+                    logger.error(error_msg)
+                    resultado['error'] = error_msg
+                    resultado['message'] = "Factura requiere entrada de material (MIGO) no encontrada"
+                    return resultado
+            else:
+                error_msg = f"OC {selected_oc} requiere MIGO pero no hay entradas de material"
+                print(f"\n❌ ERROR: {error_msg}")
+                logger.error(error_msg)
+                resultado['error'] = error_msg
+                resultado['message'] = "Factura requiere entrada de material (MIGO) no encontrada"
+                return resultado
+
         # PASO 4: Construir JSON para SAP
         print("\n" + "=" * 70)
         print("4️⃣ CONSTRUCCIÓN DE JSON PARA SAP")
         print("=" * 70)
 
-        factura_json = construir_json_factura_sap(factura_datos, proveedor_info, oc_items)
+        factura_json = construir_json_factura_sap(
+            factura_datos,
+            proveedor_info,
+            oc_items,
+            needs_migo=needs_migo,
+            reference_document=reference_document
+        )
 
         if not factura_json:
             error_msg = "No se pudo construir el JSON para SAP"

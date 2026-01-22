@@ -20,14 +20,70 @@ from utilities.text_utils import (
     limpiar_nombre_minimo,
     extraer_solo_numeros,
     clean_openai_json,
+    calcular_similitud_descripcion,
+    comparar_precios_unitarios,
+    evaluar_cantidad,
+    evaluar_monto_total,
 )
 from utilities.date_utils import format_sap_date
 from utilities.prompts import (
     get_invoice_text_parser_prompt,
     get_invoice_validator_prompt,
     get_OC_validator_prompt,
+    get_description_comparison_prompt,
 )
 from utilities.general import get_openai_answer
+
+
+def comparar_descripciones_con_ia(
+    descripcion_ocr: str,
+    descripcion_sap: str,
+    codigo_ocr: str = "",
+    material_sap: str = ""
+) -> tuple[float, str]:
+    """
+    Usa IA para comparar descripciones de productos.
+
+    Returns:
+        tuple: (score 0-1, razón de la decisión)
+    """
+    try:
+        # Si hay match exacto de código, no necesitamos IA
+        if codigo_ocr and material_sap and str(codigo_ocr) == str(material_sap):
+            return (1.0, "Código de material coincide exactamente")
+
+        # Si alguna descripción está vacía
+        if not descripcion_ocr or not descripcion_sap:
+            return (0.0, "Descripción vacía")
+
+        system_prompt, user_prompt = get_description_comparison_prompt(
+            descripcion_ocr, descripcion_sap, codigo_ocr, material_sap
+        )
+
+        raw_result = get_openai_answer(system_prompt, user_prompt)
+        raw_result = clean_openai_json(raw_result)
+
+        result = json.loads(raw_result)
+
+        match = result.get("match", False)
+        confidence = float(result.get("confidence", 0.0))
+        reason = result.get("reason", "Sin razón")
+
+        # Si es match, usar la confianza como score
+        # Si no es match, score bajo proporcional a la confianza inversa
+        if match:
+            score = confidence
+        else:
+            score = (1 - confidence) * 0.3  # Máximo 0.3 si no hay match
+
+        return (score, reason)
+
+    except Exception as e:
+        logger.warning(f"Error en comparación IA de descripciones: {e}")
+        # Fallback a comparación básica
+        from utilities.text_utils import calcular_similitud_descripcion
+        score = calcular_similitud_descripcion(descripcion_ocr, descripcion_sap)
+        return (score, f"Fallback fuzzy match (error IA: {str(e)[:50]})")
 
 logger = logging.getLogger(__name__)
 
@@ -323,30 +379,397 @@ def validar_proveedor_con_ai(factura_datos: dict, proveedores_sap: list) -> dict
 # ÓRDENES DE COMPRA
 # ============================================
 
+# Configuración de scoring
+SCORE_CONFIG = {
+    "peso_monto": 0.40,        # 40% para monto total
+    "peso_cantidad": 0.30,     # 30% para cantidad
+    "peso_descripcion": 0.30,  # 30% para descripción/material
+    "tolerancia_precio": 0.02, # 2% tolerancia en precio unitario
+    "score_minimo": 70,        # Score mínimo para aceptar una OC
+}
+
+
+def _filtrar_ocs_nivel1(oc_list: list, factura_datos: dict) -> list:
+    """
+    NIVEL 1: Filtro a nivel de Header.
+    Filtra OCs por:
+    - PurchasingProcessingStatus == '05' (Liberadas)
+    - PurchaseOrderDate <= DocumentDate de la factura
+    - DocumentCurrency coincidente
+    """
+    fecha_factura = factura_datos.get("DocumentDate", "")
+    moneda_factura = factura_datos.get("DocumentCurrency", "BOB")
+
+    ocs_filtradas = []
+
+    print(f"\n  📋 NIVEL 1: Filtro de Headers")
+    print(f"     Fecha factura: {fecha_factura}")
+    print(f"     Moneda factura: {moneda_factura}")
+    print(f"     OCs a evaluar: {len(oc_list)}")
+
+    for oc in oc_list:
+        oc_num = oc.get("PurchaseOrder", "N/A")
+        status = oc.get("PurchasingProcessingStatus", "")
+        fecha_oc = oc.get("PurchaseOrderDate", "")
+        moneda_oc = oc.get("DocumentCurrency", "BOB")
+
+        # Normalizar fecha SAP (formato /Date(xxxxx)/ a YYYY-MM-DD)
+        if fecha_oc and fecha_oc.startswith("/Date("):
+            try:
+                timestamp = int(fecha_oc.replace("/Date(", "").replace(")/", "")) / 1000
+                from datetime import datetime as dt
+                fecha_oc = dt.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+            except:
+                fecha_oc = ""
+
+        # Verificar criterios
+        status_ok = status == "05" or status == ""  # Aceptar vacío por si no viene el campo
+        fecha_ok = not fecha_factura or not fecha_oc or fecha_oc <= fecha_factura
+        moneda_ok = moneda_oc == moneda_factura
+
+        if status_ok and fecha_ok and moneda_ok:
+            ocs_filtradas.append(oc)
+            print(f"     ✅ OC {oc_num}: Status={status}, Fecha={fecha_oc}, Moneda={moneda_oc}")
+        else:
+            razones = []
+            if not status_ok:
+                razones.append(f"Status={status}≠05")
+            if not fecha_ok:
+                razones.append(f"Fecha OC({fecha_oc})>Factura({fecha_factura})")
+            if not moneda_ok:
+                razones.append(f"Moneda={moneda_oc}≠{moneda_factura}")
+            print(f"     ❌ OC {oc_num}: {', '.join(razones)}")
+
+    print(f"     📊 OCs que pasan filtro Nivel 1: {len(ocs_filtradas)}/{len(oc_list)}")
+    return ocs_filtradas
+
+
+def _calcular_score_item(item_ocr: dict, item_sap: dict, usar_ia_descripcion: bool = True) -> dict:
+    """
+    Calcula el score de match entre un ítem de factura (OCR) y un ítem de OC (SAP).
+
+    Criterios:
+    - Precio unitario: DEBE coincidir (con tolerancia 2%) - es validación crítica
+    - Cantidad (30%): Si cantidad_ocr <= OrderQuantity = 100%, si mayor = 0%
+    - Monto (40%): Proporcional al monto
+    - Descripción/Material (30%): Comparación con IA o fuzzy match
+
+    Returns:
+        dict con score, detalles y flags
+    """
+    # Extraer datos OCR
+    precio_ocr = float(item_ocr.get("UnitPrice", 0) or 0)
+    cantidad_ocr = float(item_ocr.get("Quantity", 0) or 0)
+    descripcion_ocr = item_ocr.get("Description", "")
+    codigo_ocr = str(item_ocr.get("ProductCode", "") or "")
+    subtotal_ocr = float(item_ocr.get("Subtotal", 0) or 0)
+
+    # Extraer datos SAP
+    precio_sap = float(item_sap.get("NetPriceAmount", 0) or 0)
+    cantidad_sap = float(item_sap.get("OrderQuantity", 0) or 0)
+    descripcion_sap = item_sap.get("PurchaseOrderItemText", "")
+    material_sap = str(item_sap.get("Material", "") or "")
+
+    # Calcular monto total OC
+    monto_sap = precio_sap * cantidad_sap
+    monto_ocr = subtotal_ocr if subtotal_ocr > 0 else (precio_ocr * cantidad_ocr)
+
+    result = {
+        "score": 0,
+        "precio_unitario_ok": False,
+        "diferencia_precio": 0,
+        "score_cantidad": 0,
+        "estado_cantidad": "",
+        "score_monto": 0,
+        "estado_monto": "",
+        "score_descripcion": 0,
+        "descripcion_ia_razon": "",
+        "es_factura_parcial": False,
+        "detalle": {}
+    }
+
+    # 1. VALIDACIÓN CRÍTICA: Precio Unitario
+    precio_ok, dif_precio = comparar_precios_unitarios(
+        precio_ocr, precio_sap, SCORE_CONFIG["tolerancia_precio"]
+    )
+    result["precio_unitario_ok"] = precio_ok
+    result["diferencia_precio"] = dif_precio
+
+    if not precio_ok:
+        result["score"] = 10
+        result["detalle"] = {
+            "razon": f"Precio unitario no coincide",
+            "precio_ocr": precio_ocr,
+            "precio_sap": precio_sap,
+            "diferencia_pct": dif_precio * 100
+        }
+        return result
+
+    # 2. Score Cantidad (30%)
+    score_cant, estado_cant = evaluar_cantidad(cantidad_ocr, cantidad_sap)
+    result["score_cantidad"] = score_cant * SCORE_CONFIG["peso_cantidad"] * 100
+    result["estado_cantidad"] = estado_cant
+
+    if estado_cant == "EXCESO":
+        result["score"] = 10
+        result["detalle"] = {
+            "razon": "Cantidad excede OC",
+            "cantidad_ocr": cantidad_ocr,
+            "cantidad_sap": cantidad_sap
+        }
+        return result
+
+    # 3. Score Monto (40%)
+    score_monto, estado_monto = evaluar_monto_total(monto_ocr, monto_sap)
+    result["score_monto"] = score_monto * SCORE_CONFIG["peso_monto"] * 100
+    result["estado_monto"] = estado_monto
+
+    # 4. Score Descripción/Material (30%) - USANDO IA
+    if usar_ia_descripcion:
+        score_desc, razon_desc = comparar_descripciones_con_ia(
+            descripcion_ocr, descripcion_sap, codigo_ocr, material_sap
+        )
+        result["descripcion_ia_razon"] = razon_desc
+    else:
+        # Fallback a fuzzy match
+        if codigo_ocr and material_sap and codigo_ocr == material_sap:
+            score_desc = 1.0
+            razon_desc = "Código material coincide"
+        else:
+            score_desc = calcular_similitud_descripcion(descripcion_ocr, descripcion_sap)
+            razon_desc = f"Fuzzy match: {score_desc*100:.0f}%"
+        result["descripcion_ia_razon"] = razon_desc
+
+    result["score_descripcion"] = score_desc * SCORE_CONFIG["peso_descripcion"] * 100
+
+    # Calcular score total
+    result["score"] = (
+        result["score_cantidad"] +
+        result["score_monto"] +
+        result["score_descripcion"]
+    )
+
+    # Marcar si es factura parcial
+    result["es_factura_parcial"] = estado_cant == "PARCIAL" or estado_monto == "PARCIAL"
+
+    result["detalle"] = {
+        "precio_ocr": precio_ocr,
+        "precio_sap": precio_sap,
+        "cantidad_ocr": cantidad_ocr,
+        "cantidad_sap": cantidad_sap,
+        "monto_ocr": monto_ocr,
+        "monto_sap": monto_sap,
+        "descripcion_ocr": descripcion_ocr[:60],
+        "descripcion_sap": descripcion_sap[:60],
+        "codigo_ocr": codigo_ocr,
+        "material_sap": material_sap,
+    }
+
+    return result
+
+
+def _evaluar_ocs_nivel2(ocs_filtradas: list, factura_datos: dict) -> list:
+    """
+    NIVEL 2: Scoring a nivel de Ítems.
+    Para cada OC filtrada, evalúa sus ítems contra los ítems de la factura.
+
+    Returns:
+        Lista de candidatos ordenados por score con toda la info necesaria
+    """
+    items_factura = factura_datos.get("Items", [])
+    monto_factura = float(factura_datos.get("InvoiceGrossAmount", 0) or 0)
+
+    if not items_factura:
+        # Si no hay ítems detallados, crear uno genérico con el monto total
+        items_factura = [{
+            "Description": "",
+            "Quantity": 1,
+            "UnitPrice": monto_factura,
+            "Subtotal": monto_factura
+        }]
+
+    print(f"\n  📋 NIVEL 2: Scoring de Ítems")
+    print(f"     Ítems en factura: {len(items_factura)}")
+
+    # Mostrar datos de la factura para comparación
+    print(f"\n     📄 DATOS FACTURA (OCR):")
+    for i, item in enumerate(items_factura, 1):
+        print(f"        Ítem {i}:")
+        print(f"          Descripción: {item.get('Description', 'N/A')[:50]}")
+        print(f"          Cantidad: {item.get('Quantity', 'N/A')}")
+        print(f"          Precio Unit: {item.get('UnitPrice', 'N/A')}")
+        print(f"          Subtotal: {item.get('Subtotal', 'N/A')}")
+        if item.get('ProductCode'):
+            print(f"          Código: {item.get('ProductCode')}")
+
+    candidatos = []
+
+    for oc in ocs_filtradas:
+        oc_num = oc.get("PurchaseOrder", "")
+        items_oc = oc.get("to_PurchaseOrderItem", {}).get("results", [])
+
+        if not items_oc:
+            print(f"\n     ⚠️  OC {oc_num}: Sin ítems expandidos")
+            continue
+
+        print(f"\n     {'='*60}")
+        print(f"     🔍 Evaluando OC {oc_num} ({len(items_oc)} ítems):")
+        print(f"     {'='*60}")
+
+        # Evaluar cada combinación item_factura vs item_oc
+        for item_oc in items_oc:
+            oc_item_num = item_oc.get("PurchaseOrderItem", "")
+            is_finally_invoiced = item_oc.get("IsFinallyInvoiced", False)
+            descripcion_sap = item_oc.get("PurchaseOrderItemText", "N/A")
+            precio_sap = item_oc.get("NetPriceAmount", "N/A")
+            cantidad_sap = item_oc.get("OrderQuantity", "N/A")
+            material_sap = item_oc.get("Material", "N/A")
+
+            print(f"\n        📦 Ítem OC {oc_item_num}:")
+            print(f"           SAP Descripción: {descripcion_sap[:50]}")
+            print(f"           SAP Material: {material_sap}")
+            print(f"           SAP Precio Unit: {precio_sap}")
+            print(f"           SAP Cantidad: {cantidad_sap}")
+
+            # Saltar ítems ya facturados completamente
+            if is_finally_invoiced:
+                print(f"           ⏭️  SALTADO: Ya facturado completamente")
+                continue
+
+            mejor_score_item = 0
+            mejor_match = None
+
+            for idx, item_factura in enumerate(items_factura):
+                score_result = _calcular_score_item(item_factura, item_oc, usar_ia_descripcion=True)
+
+                if score_result["score"] > mejor_score_item:
+                    mejor_score_item = score_result["score"]
+                    mejor_match = {
+                        "ocr_position": idx + 1,
+                        "score_result": score_result,
+                        "item_factura": item_factura
+                    }
+
+            # Mostrar desglose del scoring
+            if mejor_match:
+                sr = mejor_match["score_result"]
+                det = sr.get("detalle", {})
+
+                print(f"\n           📊 DESGLOSE SCORING:")
+                print(f"           ┌─────────────────────────────────────────────────────────")
+                print(f"           │ COMPARACIÓN: Factura vs OC {oc_item_num}")
+                print(f"           ├─────────────────────────────────────────────────────────")
+                print(f"           │ PRECIO UNITARIO:")
+                print(f"           │   OCR: {det.get('precio_ocr', 'N/A')} | SAP: {det.get('precio_sap', 'N/A')}")
+                print(f"           │   ✓ Coincide: {'Sí' if sr['precio_unitario_ok'] else 'No'} (dif: {sr['diferencia_precio']*100:.1f}%)")
+                print(f"           ├─────────────────────────────────────────────────────────")
+                print(f"           │ CANTIDAD (peso 30%):")
+                print(f"           │   OCR: {det.get('cantidad_ocr', 'N/A')} | SAP: {det.get('cantidad_sap', 'N/A')}")
+                print(f"           │   Estado: {sr['estado_cantidad']} → Score: {sr['score_cantidad']:.1f}")
+                print(f"           ├─────────────────────────────────────────────────────────")
+                print(f"           │ MONTO TOTAL (peso 40%):")
+                print(f"           │   OCR: {det.get('monto_ocr', 'N/A')} | SAP: {det.get('monto_sap', 'N/A')}")
+                print(f"           │   Estado: {sr['estado_monto']} → Score: {sr['score_monto']:.1f}")
+                print(f"           ├─────────────────────────────────────────────────────────")
+                print(f"           │ DESCRIPCIÓN (peso 30%) - Comparación IA:")
+                print(f"           │   OCR: \"{det.get('descripcion_ocr', 'N/A')}\"")
+                print(f"           │   SAP: \"{det.get('descripcion_sap', 'N/A')}\"")
+                print(f"           │   IA dice: {sr.get('descripcion_ia_razon', 'N/A')}")
+                print(f"           │   → Score: {sr['score_descripcion']:.1f}")
+                print(f"           ├─────────────────────────────────────────────────────────")
+                print(f"           │ SCORE TOTAL: {sr['score']:.1f}/100 (mínimo: {SCORE_CONFIG['score_minimo']})")
+                print(f"           └─────────────────────────────────────────────────────────")
+
+            if mejor_match and mejor_score_item >= SCORE_CONFIG["score_minimo"]:
+                # Extraer flag needs_migo
+                needs_migo = item_oc.get("InvoiceIsGoodsReceiptBased", False)
+
+                candidato = {
+                    "status": "success",
+                    "selected_purchase_order": oc_num,
+                    "selected_purchase_order_item": oc_item_num,
+                    "needs_migo": needs_migo,
+                    "match_score": mejor_score_item,
+                    "es_factura_parcial": mejor_match["score_result"]["es_factura_parcial"],
+                    "items_mapping": [{
+                        "ocr_position": mejor_match["ocr_position"],
+                        "purchase_order_item": oc_item_num,
+                        "material": item_oc.get("Material", ""),
+                        "quantity_matched": mejor_match["score_result"]["estado_cantidad"] != "EXCESO"
+                    }],
+                    "item_oc_data": item_oc,
+                    "score_detail": mejor_match["score_result"]
+                }
+                candidatos.append(candidato)
+
+                print(f"\n           ✅ CANDIDATO VÁLIDO: Score={mejor_score_item:.1f} >= {SCORE_CONFIG['score_minimo']}")
+                print(f"              NeedsMIGO: {'Sí' if needs_migo else 'No'}")
+            elif mejor_match:
+                print(f"\n           ❌ NO CALIFICA: Score={mejor_score_item:.1f} < {SCORE_CONFIG['score_minimo']} (mínimo)")
+
+    # Resumen de candidatos encontrados
+    print(f"\n     {'='*60}")
+    print(f"     📊 RESUMEN NIVEL 2:")
+    print(f"        Candidatos válidos encontrados: {len(candidatos)}")
+    if candidatos:
+        candidatos.sort(key=lambda x: x["match_score"], reverse=True)
+        for i, c in enumerate(candidatos[:3], 1):
+            print(f"        {i}. OC {c['selected_purchase_order']} Item {c['selected_purchase_order_item']}: Score={c['match_score']:.1f}")
+    print(f"     {'='*60}")
+
+    return candidatos
+
+
 def obtener_ordenes_compra_proveedor(
-    descripcion_factura: str,
-    monto_factura: float,
+    factura_datos: dict,
     supplier_code: str,
-    tax_code: str
-) -> list:
+    tax_code: str = "V0"
+) -> dict:
     """
-    Obtiene las órdenes de compra activas para un proveedor específico.
-    Usa AI para seleccionar la OC más apropiada.
+    Obtiene y selecciona la mejor orden de compra para una factura.
+
+    Implementa selección determinística en dos niveles:
+    - Nivel 1: Filtro por Header (status, fecha, moneda)
+    - Nivel 2: Scoring por Ítem (precio unitario, cantidad, monto, descripción)
+
+    Args:
+        factura_datos: Datos completos de la factura (del parseo OCR)
+        supplier_code: Código del proveedor en SAP
+        tax_code: Código de impuesto (default "V0")
+
+    Returns:
+        dict con estructura:
+        {
+            "status": "success" | "no_match" | "duplicate_requires_intervention" | "error",
+            "selected_purchase_order": str,
+            "selected_purchase_order_item": str,
+            "needs_migo": bool,
+            "match_score": float,
+            "es_factura_parcial": bool,
+            "items_mapping": list,
+            "oc_items": list  # Para compatibilidad con construir_json_factura_sap
+        }
     """
+    monto_factura = float(factura_datos.get("InvoiceGrossAmount", 0) or 0)
+
+    print("\n" + "=" * 70)
+    print("🔍 SELECCIÓN DE ORDEN DE COMPRA (Método Determinístico)")
+    print("=" * 70)
+    print(f"  Proveedor: {supplier_code}")
+    print(f"  Monto factura: {monto_factura} BOB")
+    print(f"  Fecha factura: {factura_datos.get('DocumentDate', 'N/A')}")
+
+    if not supplier_code:
+        logger.warning("No se proporcionó código de proveedor")
+        return {"status": "error", "error": "No se proporcionó código de proveedor"}
+
     try:
         headers = get_sap_headers()
-        print({descripcion_factura, monto_factura, supplier_code})
 
-        if not supplier_code:
-            logger.warning("No se proporcionó código de proveedor para obtener órdenes de compra")
-            return []
-
+        # Obtener OCs con ítems expandidos
         url = f"{SAP_CONFIG['purchase_order_url']}?$filter=Supplier eq '{supplier_code}'&$expand=to_PurchaseOrderItem"
-        print(f"\n🔍 BUSCANDO ÓRDENES DE COMPRA PARA PROVEEDOR {supplier_code}")
-        print("=" * 50)
-        print(f"  Método: GET")
-        print(f"  URL: {url}")
-        print(f"  Usuario: {SAP_CONFIG['username']}")
+        print(f"\n  📡 Consultando SAP...")
+        print(f"     URL: {url[:80]}...")
 
         response = requests.get(
             url,
@@ -355,80 +778,93 @@ def obtener_ordenes_compra_proveedor(
             timeout=30
         )
 
-        print(f"  📊 Status Code: {response.status_code}")
+        print(f"     Status: {response.status_code}")
 
-        if response.status_code == 200:
-            data = safe_json_response(response)
-            if data and "d" in data and "results" in data["d"]:
-                oc_list = data["d"]["results"]
-                if oc_list:
-                    print(f"  ✅ {len(oc_list)} órdenes de compra encontradas:")
-                    print("  " + "-" * 40)
+        if response.status_code != 200:
+            if response.status_code == 403:
+                return {"status": "error", "error": "Permisos insuficientes (403)"}
+            return {"status": "error", "error": f"Error SAP: {response.status_code}"}
 
-                    for i, oc in enumerate(oc_list):
-                        oc_num = oc.get('PurchaseOrder', 'N/A')
-                        oc_item = oc.get('Language', 'N/A')
-                        oc_status = oc.get('PaymentTerms', 'N/A')
-                        oc_date = oc.get('CreationDate', 'N/A')
+        data = safe_json_response(response)
+        if not data or "d" not in data or "results" not in data["d"]:
+            return {"status": "no_match", "error": "No se encontraron OCs para el proveedor"}
 
-                        print(f"    {i + 1:2d}. OC: {oc_num:15} | Item: {oc_item:8} | Status: {oc_status:10} | Fecha: {oc_date}")
+        oc_list = data["d"]["results"]
+        print(f"\n  📊 OCs encontradas: {len(oc_list)}")
 
-                    print("  " + "-" * 40)
+        if not oc_list:
+            return {"status": "no_match", "error": "No hay OCs para el proveedor"}
 
-                    # Usar IA para seleccionar la OC más apropiada
-                    system_prompt, user_prompt = get_OC_validator_prompt(
-                        descripcion_factura,
-                        monto_factura,
-                        supplier_code,
-                        oc_list
-                    )
-                    raw_result = get_openai_answer(system_prompt, user_prompt)
-                    raw_result = clean_openai_json(raw_result)
+        # NIVEL 1: Filtro de Headers
+        ocs_filtradas = _filtrar_ocs_nivel1(oc_list, factura_datos)
 
-                    oc_info = json.loads(raw_result)
+        if not ocs_filtradas:
+            return {
+                "status": "no_match",
+                "error": "Ninguna OC pasó el filtro de Nivel 1 (status/fecha/moneda)"
+            }
 
-                    if oc_info and "PurchaseOrder" in oc_info:
-                        print(f"  📋 OC SELECCIONADA POR IA:")
-                        print(f"     • OC {oc_info.get('PurchaseOrder')} - Item {oc_info.get('PurchaseOrderItem')}")
+        # NIVEL 2: Scoring de Ítems
+        candidatos = _evaluar_ocs_nivel2(ocs_filtradas, factura_datos)
 
-                        print(oc_info.get('PurchaseOrderQuantityUnit', ''), )
+        if not candidatos:
+            return {
+                "status": "no_match",
+                "error": f"Ninguna OC alcanzó el score mínimo ({SCORE_CONFIG['score_minimo']})"
+            }
 
-                        return [{
-                            "PurchaseOrder": oc_info.get('PurchaseOrder'),
-                            "PurchaseOrderItem": oc_info.get('PurchaseOrderItem', ''),
-                            "DocumentCurrency": "BOB",
-                            "QuantityInPurchaseOrderUnit": "1.000",
-                            "PurchaseOrderQuantityUnit": oc_info.get('PurchaseOrderQuantityUnit', ''),
-                            "SupplierInvoiceItemAmount": str(monto_factura),
-                            "TaxCode": tax_code or oc_info.get('TaxCode', 'V0')
-                        }]
-                    else:
-                        print(f"  ⚠️  IA no pudo identificar una OC específica")
-                        logger.warning(f"IA no pudo identificar una OC específica para proveedor {supplier_code}")
-                        return []
-                else:
-                    print(f"  ⚠️  No se encontraron órdenes de compra para el proveedor {supplier_code}")
-                    logger.warning(f"ℹ️ No se encontraron órdenes de compra para el proveedor {supplier_code}")
-            else:
-                print(f"  ⚠️  No se encontraron datos en la respuesta")
-                logger.warning("No se encontraron datos de órdenes de compra en la respuesta")
+        # Verificar duplicados (dos OCs con score muy cercano)
+        if len(candidatos) >= 2:
+            diff_score = abs(candidatos[0]["match_score"] - candidatos[1]["match_score"])
+            if diff_score < 5:  # Menos de 5 puntos de diferencia
+                print(f"\n  ⚠️  ALERTA: Dos OCs con scores muy cercanos:")
+                print(f"     1. OC {candidatos[0]['selected_purchase_order']}: {candidatos[0]['match_score']:.1f}")
+                print(f"     2. OC {candidatos[1]['selected_purchase_order']}: {candidatos[1]['match_score']:.1f}")
+                return {
+                    "status": "duplicate_requires_intervention",
+                    "error": "Múltiples OCs con score similar, requiere intervención",
+                    "candidatos": candidatos[:2]
+                }
 
-        elif response.status_code == 403:
-            print(f"  ❌ ERROR 403: Permisos insuficientes")
-            print(f"     Usuario: {SAP_CONFIG['username']}")
-            print(f"     Endpoint: {url}")
-            print(f"     Contactar al administrador SAP para agregar permisos")
-            logger.warning(f"No se pudo acceder a API de órdenes de compra (Status: 403 - Forbidden)")
-            return []
-        else:
-            print(f"  ❌ Error {response.status_code}: {response.text[:200]}")
-            logger.warning(f"No se pudo acceder a API de órdenes de compra (Status: {response.status_code})")
+        # Seleccionar el mejor candidato
+        ganador = candidatos[0]
+
+        print(f"\n  🏆 OC SELECCIONADA:")
+        print(f"     OC: {ganador['selected_purchase_order']}")
+        print(f"     Ítem: {ganador['selected_purchase_order_item']}")
+        print(f"     Score: {ganador['match_score']:.1f}/100")
+        print(f"     Requiere MIGO: {'Sí' if ganador['needs_migo'] else 'No'}")
+        print(f"     Factura Parcial: {'Sí' if ganador['es_factura_parcial'] else 'No'}")
+
+        # Preparar respuesta con formato compatible
+        item_oc = ganador["item_oc_data"]
+        oc_items = [{
+            "PurchaseOrder": ganador["selected_purchase_order"],
+            "PurchaseOrderItem": ganador["selected_purchase_order_item"],
+            "DocumentCurrency": "BOB",
+            "QuantityInPurchaseOrderUnit": str(factura_datos.get("Items", [{}])[0].get("Quantity", 1)),
+            "PurchaseOrderQuantityUnit": item_oc.get("PurchaseOrderQuantityUnit", "EA"),
+            "SupplierInvoiceItemAmount": str(monto_factura),
+            "TaxCode": tax_code or item_oc.get("TaxCode", "V0"),
+            "Material": item_oc.get("Material", ""),
+            "NetPriceAmount": item_oc.get("NetPriceAmount", ""),
+        }]
+
+        return {
+            "status": "success",
+            "selected_purchase_order": ganador["selected_purchase_order"],
+            "selected_purchase_order_item": ganador["selected_purchase_order_item"],
+            "needs_migo": ganador["needs_migo"],
+            "match_score": ganador["match_score"],
+            "es_factura_parcial": ganador["es_factura_parcial"],
+            "items_mapping": ganador["items_mapping"],
+            "oc_items": oc_items  # Para compatibilidad
+        }
 
     except Exception as e:
         print(f"  ❌ Excepción: {e}")
-        logger.error(f"Error al obtener órdenes de compra: {e}")
-
-    return []
+        logger.error(f"Error en obtener_ordenes_compra_proveedor: {e}")
+        return {"status": "error", "error": str(e)}
 
 # ============================================
 # Verificar la entrada del material (MIGO)
@@ -565,10 +1001,27 @@ def validar_y_seleccionar_entrada_material(factura_info, oc_info, entradas_mater
 def construir_json_factura_sap(
     factura_datos: dict,
     proveedor_info: dict,
-    oc_items: list
+    oc_items: list,
+    needs_migo: bool = False,
+    reference_document: dict = None
 ) -> dict | None:
     """
     Construye el JSON final en el formato exacto que SAP espera.
+
+    Args:
+        factura_datos: Datos de la factura del parseo OCR
+        proveedor_info: Información del proveedor de SAP
+        oc_items: Lista de ítems de OC seleccionados
+        needs_migo: Si True, se incluyen campos ReferenceDocument (requiere entrada de material)
+        reference_document: Datos del documento de referencia (MIGO) si needs_migo=True
+            {
+                "ReferenceDocument": "5000000244",
+                "ReferenceDocumentFiscalYear": "2025",
+                "ReferenceDocumentItem": "1"
+            }
+
+    Returns:
+        dict con el JSON para SAP o None si hay error
     """
     print("\n" + "=" * 70)
     print("🏗️  CONSTRUYENDO JSON PARA SAP")
@@ -605,6 +1058,7 @@ def construir_json_factura_sap(
     print(f"     • Monto: {invoice_amount_str} BOB")
     print(f"     • Fecha: {fecha_documento}")
     print(f"     • OCs encontradas: {len(oc_items)}")
+    print(f"     • Requiere MIGO: {'Sí' if needs_migo else 'No'}")
 
     factura_json = {
         "CompanyCode": "1000",
@@ -635,17 +1089,28 @@ def construir_json_factura_sap(
             "SupplierInvoiceItem": str(idx).zfill(5),
             "PurchaseOrder": oc.get("PurchaseOrder", ""),
             "PurchaseOrderItem": oc.get("PurchaseOrderItem", "00010"),
-            "ReferenceDocument": oc.get("ReferenceDocument", "5000000244"),
-            "ReferenceDocumentFiscalYear": oc.get("ReferenceDocumentFiscalYear", "2025"),
-            "ReferenceDocumentItem": oc.get("ReferenceDocumentItem", "1"),
             "DocumentCurrency": "BOB",
-            "QuantityInPurchaseOrderUnit": "1.000",
+            "QuantityInPurchaseOrderUnit": oc.get("QuantityInPurchaseOrderUnit", "1.000"),
             "PurchaseOrderQuantityUnit": oc.get("PurchaseOrderQuantityUnit", ""),
             "SupplierInvoiceItemAmount": invoice_amount_str,
             "TaxCode": oc.get("TaxCode", "V0")
         }
+
+        # Solo agregar campos ReferenceDocument si needs_migo es True
+        if needs_migo:
+            if reference_document:
+                item["ReferenceDocument"] = reference_document.get("ReferenceDocument", "")
+                item["ReferenceDocumentFiscalYear"] = reference_document.get("ReferenceDocumentFiscalYear", "")
+                item["ReferenceDocumentItem"] = reference_document.get("ReferenceDocumentItem", "1")
+                print(f"     • Item {idx}: OC {oc.get('PurchaseOrder')}, Item {oc.get('PurchaseOrderItem')} "
+                      f"[MIGO: {reference_document.get('ReferenceDocument')}]")
+            else:
+                logger.warning(f"needs_migo=True pero no se proporcionó reference_document para ítem {idx}")
+                print(f"     ⚠️  Item {idx}: OC {oc.get('PurchaseOrder')} - FALTA MIGO!")
+        else:
+            print(f"     • Item {idx}: OC {oc.get('PurchaseOrder')}, Item {oc.get('PurchaseOrderItem')} [Directo]")
+
         factura_json["to_SuplrInvcItemPurOrdRef"]["results"].append(item)
-        print(f"     • Item {idx}: OC {oc.get('PurchaseOrder')}, Item {oc.get('PurchaseOrderItem')}")
 
     return factura_json
 
