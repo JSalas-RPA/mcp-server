@@ -49,7 +49,7 @@ from tools import (
     construir_json_factura,
     enviar_factura_sap,
 )
-from utilities.image_storage import download_pdf_to_tempfile
+from utilities.file_storage import download_pdf_to_tempfile
 
 # Imports del sistema de verificación
 from verification.ground_truth import GroundTruthManager
@@ -199,16 +199,18 @@ class FlujoVerificado:
             resultado["needs_migo"] = oc_result.get("needs_migo", False)
             self._check_exit(4)
 
-            # ETAPA 5: Verificación entrada material (MIGO) - Solo si needs_migo
-            if resultado["needs_migo"]:
-                resultado["migo_info"] = self._ejecutar_etapa_migo(
-                    resultado["datos_factura"],
-                    oc_result
-                )
-            else:
-                self._registrar_etapa_skip(5, "MIGO no requerido (InvoiceIsGoodsReceiptBased=False)")
-                resultado["migo_info"] = None
+            # ETAPA 5: Verificación entrada material (MIGO) - OBLIGATORIA
+            # Siempre verificamos que exista MIGO, needs_migo solo define si se incluye en JSON
+            resultado["migo_result"] = self._ejecutar_etapa_migo(
+                resultado["datos_factura"],
+                oc_result
+            )
             self._check_exit(5)
+
+            # Solo usar reference_document si needs_migo es True
+            reference_document = None
+            if resultado["needs_migo"]:
+                reference_document = resultado["migo_result"].get("reference_document")
 
             # ETAPA 6: Construcción JSON
             resultado["factura_json"] = self._ejecutar_etapa_json(
@@ -216,7 +218,7 @@ class FlujoVerificado:
                 resultado["proveedor_info"],
                 resultado["oc_items"],
                 needs_migo=resultado["needs_migo"],
-                reference_document=resultado.get("migo_info")
+                reference_document=reference_document
             )
             self._check_exit(6)
 
@@ -523,13 +525,18 @@ class FlujoVerificado:
             raise StageFailure(f"Error en búsqueda OC: {e}")
 
     def _ejecutar_etapa_migo(self, datos_factura: dict, oc_data: dict) -> dict:
-        """Ejecuta la etapa de verificación de entrada de material (MIGO)."""
+        """
+        Ejecuta la etapa de verificación de entrada de material (MIGO).
+
+        OBLIGATORIA: Si no hay MIGO válido, el proceso se detiene.
+        No se puede facturar un producto que no ha llegado a almacén.
+        """
         etapa_num = 5
         nombre, descripcion = self.ETAPAS[etapa_num]
         timestamp_inicio = datetime.now()
 
         print(f"\n{'='*70}")
-        print(f"ETAPA {etapa_num}: {descripcion.upper()}")
+        print(f"ETAPA {etapa_num}: {descripcion.upper()} - OBLIGATORIA")
         print(f"{'='*70}")
 
         try:
@@ -541,10 +548,24 @@ class FlujoVerificado:
             if not purchase_order:
                 raise StageFailure("No hay OC seleccionada para verificar MIGO")
 
-            oc_info = oc_items[0] if oc_items else {}
+            # Preparar oc_info con material
+            oc_info = {}
+            if oc_items:
+                oc_info = {
+                    "PurchaseOrder": purchase_order,
+                    "PurchaseOrderItem": purchase_order_item,
+                    "Material": oc_items[0].get("Material", "")
+                }
+            else:
+                oc_info = {
+                    "PurchaseOrder": purchase_order,
+                    "PurchaseOrderItem": purchase_order_item
+                }
 
             print(f"  Verificando MIGO para OC: {purchase_order}")
             print(f"  Item OC: {purchase_order_item}")
+            if oc_info.get("Material"):
+                print(f"  Material: {oc_info.get('Material')}")
 
             resultado = verificar_entrada_material(
                 purchase_order,
@@ -553,35 +574,48 @@ class FlujoVerificado:
                 oc_info
             )
 
+            # MIGO es OBLIGATORIO - si no se encuentra, detener el proceso
             if resultado.get("status") == "not_found":
-                print(f"  ⚠️  No se encontraron entradas de material para OC {purchase_order}")
-                # No es error fatal, continuamos pero registramos warning
-                migo_info = {
-                    "status": "not_found",
-                    "purchase_order": purchase_order,
-                    "message": "No se encontraron entradas de material"
-                }
-            elif resultado.get("status") == "error":
-                raise StageFailure(f"Error en verificación MIGO: {resultado.get('error')}")
-            else:
-                migo_data = resultado["data"]
-                migo_info = {
-                    "status": "success",
-                    "purchase_order": purchase_order,
-                    "total_entradas": migo_data.get("total_entradas", 0),
-                    "entrada_seleccionada": migo_data.get("entrada_seleccionada", {})
-                }
+                error_msg = f"No se encontraron entradas de material (MIGO) para OC {purchase_order}"
+                print(f"  ❌ {error_msg}")
+                print(f"  ⛔ No se puede facturar un producto que no ha llegado a almacén.")
+                self._registrar_etapa_error(etapa_num, nombre, descripcion, timestamp_inicio, error_msg)
+                raise StageFailure(error_msg)
 
-                print(f"  Entradas encontradas: {migo_info['total_entradas']}")
-                entrada = migo_info.get("entrada_seleccionada", {})
-                if entrada:
-                    print(f"  Entrada seleccionada:")
-                    print(f"    - Documento: {entrada.get('ReferenceDocument', 'N/A')}")
-                    print(f"    - Año: {entrada.get('ReferenceDocumentFiscalYear', 'N/A')}")
-                    print(f"    - Item: {entrada.get('ReferenceDocumentItem', 'N/A')}")
+            if resultado.get("status") == "error":
+                error_msg = resultado.get('error', 'Error desconocido en verificación MIGO')
+                print(f"  ❌ Error en verificación: {error_msg}")
+                raise StageFailure(f"Error en verificación MIGO: {error_msg}")
 
-            # Registrar etapa (sin verificación específica por ahora)
-            # Nota: MIGO no encontrado no es error bloqueante, se registra como SUCCESS
+            # MIGO encontrado exitosamente
+            migo_data = resultado["data"]
+            reference_document = migo_data.get("reference_document", {})
+            match_score = migo_data.get("match_score", 0)
+            cantidad_disponible = migo_data.get("cantidad_disponible", 0)
+            cantidad_factura = migo_data.get("cantidad_factura", 0)
+            estado_cantidad = migo_data.get("estado_cantidad", "")
+
+            print(f"\n  ✅ MIGO VERIFICADO CORRECTAMENTE")
+            print(f"     • Score: {match_score:.1f}/100")
+            print(f"     • Cantidad disponible: {cantidad_disponible}")
+            print(f"     • Cantidad factura: {cantidad_factura}")
+            print(f"     • Estado: {estado_cantidad}")
+            print(f"     • ReferenceDocument: {reference_document.get('ReferenceDocument', 'N/A')}")
+            print(f"     • Año fiscal: {reference_document.get('ReferenceDocumentFiscalYear', 'N/A')}")
+            print(f"     • Item: {reference_document.get('ReferenceDocumentItem', 'N/A')}")
+
+            # Preparar resultado para el flujo
+            migo_result = {
+                "status": "success",
+                "purchase_order": purchase_order,
+                "reference_document": reference_document,
+                "match_score": match_score,
+                "cantidad_disponible": cantidad_disponible,
+                "cantidad_factura": cantidad_factura,
+                "estado_cantidad": estado_cantidad
+            }
+
+            # Registrar etapa exitosa
             stage_result = StageResult(
                 etapa=etapa_num,
                 nombre=nombre,
@@ -590,11 +624,11 @@ class FlujoVerificado:
                 timestamp_fin=datetime.now(),
                 duracion_ms=int((datetime.now() - timestamp_inicio).total_seconds() * 1000),
                 status=StageStatus.SUCCESS,
-                data={"migo_info": migo_info}
+                data={"migo_result": migo_result}
             )
             self.execution_logger.add_stage_result(stage_result)
 
-            return migo_info
+            return migo_result
 
         except StageFailure:
             raise

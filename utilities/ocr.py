@@ -1,50 +1,60 @@
-import re, os, io, tempfile
-import fitz
-from openai import OpenAI
-from llama_parse import LlamaParse
+# utilities/ocr.py
+# ============================================
+# Funciones de OCR (Optical Character Recognition)
+# ============================================
+# Contiene las funciones para extraer texto de PDFs e imágenes
+# usando diferentes motores: Google Cloud Vision, LlamaParse, PyMuPDF
+# ============================================
+
+import os
+import io
+import tempfile
+
+import fitz  # PyMuPDF
 from pdf2image import convert_from_path
 from google.cloud import vision_v1
-from PIL import Image
+from llama_parse import LlamaParse
 
 # -----------------------------
-# Configuración de credenciale
+# Configuración de credenciales GCP
 # -----------------------------
-# Intentar cargar .env si python-dotenv está instalado
 try:
     from dotenv import load_dotenv
-    load_dotenv()  # carga variables desde .env al entorno
+    load_dotenv()
 except Exception:
     pass
 
-# Leer el contenido del secret desde la variable de entorno
 gcp_key_json = os.getenv("datecKeyCredentials")
 
 if not gcp_key_json:
     raise EnvironmentError("No se encontró la variable de entorno 'datecKeyCredentials'")
 
-# Crear un archivo temporal para Google Cloud SDK
+# Crear archivo temporal para Google Cloud SDK
 with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as temp_file:
     temp_file.write(gcp_key_json)
     temp_file.flush()
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_file.name
 
 # -----------------------------
-# Clientes y parsers
+# LlamaParse configuration
 # -----------------------------
-openai_client = OpenAI(api_key=os.getenv("API_OPENAI_KEY"))
-
-# LlamaParse API key comes from environment to avoid hardcoding secrets.
 llama_api_key = os.getenv("LLAMAPARSE_API_KEY")
-parser = LlamaParse(
-    api_key=llama_api_key,
-    result_type="text",
-    premium_mode=True
-)
 
-# -----------------------------
-# Funciones
-# -----------------------------
-def get_transcript_document(path_doc):
+
+# ============================================
+# FUNCIONES DE OCR
+# ============================================
+
+def get_transcript_document(path_doc: str) -> str:
+    """
+    Extrae texto de un documento usando LlamaParse (OCR premium).
+
+    Args:
+        path_doc: Ruta al documento PDF
+
+    Returns:
+        Texto extraído del documento
+    """
     parser_ci = LlamaParse(
         api_key=llama_api_key,
         result_type="markdown",
@@ -58,7 +68,17 @@ def get_transcript_document(path_doc):
     return text
 
 
-def get_transcript_document_cloud_vision(path_doc):
+def get_transcript_document_cloud_vision(path_doc: str) -> str:
+    """
+    Extrae texto de un documento PDF usando Google Cloud Vision OCR.
+    Convierte cada página a imagen y aplica OCR.
+
+    Args:
+        path_doc: Ruta al documento PDF
+
+    Returns:
+        Texto extraído del documento
+    """
     client = vision_v1.ImageAnnotatorClient()
 
     pages = convert_from_path(path_doc)
@@ -77,39 +97,33 @@ def get_transcript_document_cloud_vision(path_doc):
 
         full_text += response.full_text_annotation.text + "\n"
 
-    #print("Texto extraído con Google Cloud Vision OCR:", full_text)
     return full_text.strip()
 
+
 def extract_text_from_first_page(file_path: str) -> str:
-    """Extrae texto de la primera página del PDF."""
+    """
+    Extrae texto de la primera página del PDF usando PyMuPDF.
+    Útil para PDFs que ya contienen texto (no escaneados).
+
+    Args:
+        file_path: Ruta al archivo PDF
+
+    Returns:
+        Texto extraído o código de error si el PDF es escaneado
+    """
     try:
         doc = fitz.open(file_path)
         if len(doc) == 0:
             return ""
-        
+
         # Extraemos solo la primera página
         page = doc[0]
         text_content = page.get_text().strip()
-        
+
         # Si el texto es casi nulo, asumimos que es imagen (necesitará OCR)
         if len(text_content) < 50:
             return "ERROR:_PDF_SIN_TEXTO_O_ESCANEADO"
 
-        #print("Texto extraído con PyMuPDF:", text_content)
         return text_content
     except Exception as e:
         return f"ERROR_PROCESAMIENTO: {str(e)}"
-
-def get_openai_answer(system_prompt, user_prompt):
-    respuesta = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-    )
-    return respuesta.choices[0].message.content.strip()
-
-
-def get_clean_json(text):
-    return re.search(r'(\{.*\})', text, re.DOTALL).group(1)

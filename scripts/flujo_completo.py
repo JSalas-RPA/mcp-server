@@ -175,37 +175,49 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     oc_items = oc_data.get('oc_items', [])
     needs_migo = oc_data.get('needs_migo', False)
     match_score = oc_data.get('match_score', 0)
+    selected_oc = oc_data.get('selected_purchase_order', '')
+    selected_oc_item = oc_data.get('selected_purchase_order_item', '')
 
-    print(f"\n📊 OC Seleccionada: {oc_data.get('selected_purchase_order')}")
+    # Obtener material de la OC
+    material_oc = ""
+    if oc_items:
+        material_oc = oc_items[0].get("Material", "")
+
+    print(f"\n📊 OC Seleccionada: {selected_oc}")
     print(f"   Score: {match_score:.1f}/100")
-    print(f"   Requiere MIGO: {'Sí' if needs_migo else 'No'}")
+    print(f"   Incluir ReferenceDocument: {'Sí' if needs_migo else 'No'}")
 
     # =========================================================================
-    # PASO 4.5: Verificar entrada de material si es necesario
+    # PASO 4.5: VERIFICACIÓN OBLIGATORIA DE ENTRADA DE MATERIAL (MIGO)
     # =========================================================================
+    print_header("4.5", "VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO) - OBLIGATORIA")
+    from services.sap_operations import verificar_entradas_material
+
+    oc_info_para_migo = {
+        "PurchaseOrder": selected_oc,
+        "PurchaseOrderItem": selected_oc_item,
+        "Material": material_oc
+    }
+
+    resultado_migo = verificar_entradas_material(datos_factura, oc_info_para_migo)
+
+    if resultado_migo.get("status") != "success":
+        error_msg = resultado_migo.get("error", "No se encontró entrada de material")
+        print(f"❌ {error_msg}")
+        print("   No se puede facturar un producto que no ha llegado a almacén.")
+        return False
+
+    print(f"✅ MIGO verificado correctamente")
+    print(f"   Cantidad disponible: {resultado_migo.get('cantidad_disponible', 'N/A')}")
+    print(f"   Score MIGO: {resultado_migo.get('match_score', 0):.1f}/100")
+
+    # Solo usar reference_document si needs_migo es True
     reference_document = None
     if needs_migo:
-        print_header("4.5", "VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO)")
-        from services.sap_operations import obtener_entradas_material_por_oc, validar_y_seleccionar_entrada_material
-
-        selected_oc = oc_data.get('selected_purchase_order', '')
-        selected_oc_item = oc_data.get('selected_purchase_order_item', '')
-
-        entradas = obtener_entradas_material_por_oc(selected_oc, selected_oc_item)
-        if entradas:
-            reference_document = validar_y_seleccionar_entrada_material(
-                datos_factura,
-                {"PurchaseOrder": selected_oc, "PurchaseOrderItem": selected_oc_item},
-                entradas
-            )
-            if reference_document:
-                print(f"✅ MIGO seleccionado: {reference_document.get('ReferenceDocument')}")
-            else:
-                print("❌ No se pudo seleccionar entrada de material. Abortando flujo.")
-                return False
-        else:
-            print("❌ OC requiere MIGO pero no hay entradas de material. Abortando flujo.")
-            return False
+        reference_document = resultado_migo.get("reference_document")
+        print(f"   ReferenceDocument: {reference_document.get('ReferenceDocument')} (se incluirá en JSON)")
+    else:
+        print(f"   ReferenceDocument: No se incluirá en JSON")
 
     # =========================================================================
     # PASO 5: Construir JSON para SAP
