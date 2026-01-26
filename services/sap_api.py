@@ -136,13 +136,22 @@ def fetch_ordenes_compra(supplier_code: str) -> dict:
 # ENTRADAS DE MATERIAL (MIGO)
 # ============================================
 
-def fetch_entradas_material(purchase_order: str, purchase_order_item: str = None) -> dict:
+def fetch_entradas_material(
+        purchase_order: str, 
+        purchase_order_item: str = None, 
+        movement_type: str = None, 
+        quantity: str = None,
+        material: str = None,
+        ) -> dict:
     """
     Obtiene las entradas de material (MIGO) para una orden de compra.
 
     Args:
         purchase_order: Número de orden de compra
         purchase_order_item: Número de ítem (opcional)
+        movement_type: Tipo de movimiento (opcional)
+        quantity: Cantidad (opcional)
+        material: Código de material (opcional)
 
     Returns:
         dict con estructura:
@@ -162,11 +171,18 @@ def fetch_entradas_material(purchase_order: str, purchase_order_item: str = None
         filtro = f"PurchaseOrder eq '{purchase_order}'"
         if purchase_order_item:
             filtro += f" and PurchaseOrderItem eq '{purchase_order_item}'"
+        if movement_type:
+            filtro += f" and GoodsMovementType eq '{movement_type}'"
+        if quantity:
+            filtro += f" and QuantityInBaseUnit eq {quantity}"
+        if material:
+            filtro += f" and Material eq '{material}'"
 
         url = f"{SAP_CONFIG['material_doc_url']}?$filter={filtro}"
 
         print(f"\n  Consultando entradas de material...")
-        print(f"     OC: {purchase_order}, Item: {purchase_order_item or 'todos'}")
+        print(f"     OC: {purchase_order},\n Item: {purchase_order_item or 'todos'},\n Movimiento: {movement_type or 'cualquiera'},\n Cantidad: {quantity or 'cualquiera'},\n Material: {material or 'cualquiera'}")
+        print(f"     URL: {url}")
 
         response = requests.get(
             url,
@@ -207,7 +223,8 @@ def fetch_header_material(material_document: str, material_document_year: str) -
         headers = get_sap_headers()
         url = f"{SAP_CONFIG['material_doc_url'].replace('/A_MaterialDocumentItem', '/A_MaterialDocumentHeader')}"
         url += f"(MaterialDocument='{material_document}',MaterialDocumentYear='{material_document_year}')"
-
+        print(f"\n  Consultando header de documento de material...")
+        print(f"     URL: {url}")
         response = requests.get(
             url,
             headers=headers,

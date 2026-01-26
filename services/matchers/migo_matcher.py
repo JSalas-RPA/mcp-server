@@ -3,8 +3,8 @@
 # Matching de Entradas de Material (MIGO)
 # ============================================
 # Lógica de verificación de entradas de material en dos niveles:
-# - Nivel 1: Filtro por criterios básicos (tipo movimiento, cancelación, item)
-# - Nivel 2: Scoring (cantidad, material, fecha)
+# - Nivel 1: Filtro por API (tipo movimiento, OC, item, material)
+# - Nivel 2: Match exacto por MaterialDocumentHeaderText (número de factura)
 # ============================================
 
 import logging
@@ -21,250 +21,175 @@ logger = logging.getLogger(__name__)
 
 MIGO_CONFIG = {
     "goods_movement_type": "101",  # Entrada de mercancía
-    "score_minimo": 70,
-    "peso_cantidad": 0.50,      # 50% para cantidad
-    "peso_material": 0.30,      # 30% para material
-    "peso_fecha": 0.20,         # 20% para fecha
 }
 
 
 # ============================================
-# NIVEL 1: FILTRO DE ENTRADAS
+# NIVEL 2: VERIFICACIÓN POR NÚMERO DE FACTURA
 # ============================================
+# Usa MaterialDocumentHeaderText para match exacto con número de factura
 
-def filtrar_entradas_material(entradas: list, factura_datos: dict, oc_info: dict) -> list:
+def normalizar_numero_factura(numero: str) -> str:
     """
-    NIVEL 1: Filtra entradas de material por criterios básicos.
-
-    Filtros:
-    - GoodsMovementType = '101' (entrada de mercancía)
-    - GoodsMovementIsCancelled = false
-    - PurchaseOrderItem coincide con OC seleccionada
-    - Fecha documento <= Fecha factura (si disponible)
+    Normaliza un número de factura para comparación.
+    Elimina guiones, espacios, underscores y convierte a mayúsculas.
     """
-    fecha_factura = factura_datos.get("DocumentDate", "")
-    oc_item = oc_info.get("PurchaseOrderItem", "")
-    material_oc = oc_info.get("Material", "")
+    if not numero:
+        return ""
+    # Eliminar caracteres especiales comunes y normalizar
+    return numero.replace("-", "").replace("_", "").replace(" ", "").replace("/", "").upper().strip()
 
-    entradas_filtradas = []
 
-    print(f"\n     NIVEL 1: Filtro de Entradas de Material")
-    print(f"        Fecha factura: {fecha_factura}")
-    print(f"        OC Item esperado: {oc_item}")
-    print(f"        Material OC: {material_oc}")
-    print(f"        Entradas a evaluar: {len(entradas)}")
+def verificar_match_header_text(entrada: dict, header: dict, factura_datos: dict) -> dict:
+    """
+    Verifica si el MaterialDocumentHeaderText coincide con el número de factura.
+
+    El campo MaterialDocumentHeaderText contiene el número de factura que el
+    registrador de MIGO ingresó, permitiendo un match exacto.
+
+    Args:
+        entrada: Datos del item de entrada de material
+        header: Datos del header obtenidos de to_MaterialDocumentHeader
+        factura_datos: Datos de la factura del OCR
+
+    Returns:
+        dict con:
+        - match_exacto: bool
+        - header_text: str (valor del campo)
+        - numero_factura: str (número de factura de OCR)
+        - razon: str (explicación del resultado)
+    """
+    header_text = header.get("MaterialDocumentHeaderText", "") if header else ""
+
+    # Obtener número de factura del OCR
+    numero_factura = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
+
+    result = {
+        "match_exacto": False,
+        "header_text": header_text,
+        "numero_factura": numero_factura,
+        "razon": ""
+    }
+
+    if not header_text:
+        result["razon"] = "Sin MaterialDocumentHeaderText en MIGO"
+        return result
+
+    if not numero_factura:
+        result["razon"] = "Sin numero de factura en OCR"
+        return result
+
+    # Normalizar ambos valores para comparación
+    header_normalizado = normalizar_numero_factura(header_text)
+    factura_normalizada = normalizar_numero_factura(numero_factura)
+
+    # Verificar match exacto
+    if header_normalizado == factura_normalizada:
+        result["match_exacto"] = True
+        result["razon"] = "Match exacto de numero de factura"
+    # Verificar si uno contiene al otro (por si hay prefijos/sufijos)
+    elif header_normalizado in factura_normalizada or factura_normalizada in header_normalizado:
+        result["match_exacto"] = True
+        result["razon"] = "Match parcial (uno contiene al otro)"
+    else:
+        result["razon"] = f"No coincide: MIGO='{header_text}' vs Factura='{numero_factura}'"
+
+    return result
+
+
+def evaluar_migos_nivel2(entradas: list, factura_datos: dict, oc_info: dict) -> list:
+    """
+    NIVEL 2: Verificación por MaterialDocumentHeaderText.
+
+    Para cada entrada:
+    1. Obtiene el header usando to_MaterialDocumentHeader
+    2. Compara MaterialDocumentHeaderText con el número de factura
+    3. Si hay match exacto, la entrada es válida
+
+    Args:
+        entradas: Lista de entradas de material de la API
+        factura_datos: Datos de la factura del OCR
+        oc_info: Información de la OC seleccionada
+
+    Returns:
+        Lista de candidatos con match exacto
+    """
+    print(f"\n     NIVEL 2: Verificacion por Numero de Factura (MaterialDocumentHeaderText)")
+
+    numero_factura = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
+    print(f"        Numero de factura a buscar: '{numero_factura}'")
+
+    candidatos = []
 
     for entrada in entradas:
         doc_num = entrada.get("MaterialDocument", "")
         doc_year = entrada.get("MaterialDocumentYear", "")
         doc_item = entrada.get("MaterialDocumentItem", "")
-        goods_type = entrada.get("GoodsMovementType", "")
-        is_cancelled = entrada.get("GoodsMovementIsCancelled", False)
-        po_item = entrada.get("PurchaseOrderItem", "")
+        cantidad_entrada = float(entrada.get("QuantityInEntryUnit", 0) or 0)
         material = entrada.get("Material", "")
-        cantidad = entrada.get("QuantityInEntryUnit", "0")
 
-        # Verificar criterios
-        tipo_ok = goods_type == MIGO_CONFIG["goods_movement_type"]
-        no_cancelado = not is_cancelled
-        item_ok = str(po_item) == str(oc_item) if oc_item else True
+        # Obtener el header para tener MaterialDocumentHeaderText
+        print(f"\n        Consultando header de Doc {doc_num}/{doc_year}...")
+        header = fetch_header_material(doc_num, doc_year)
 
-        if tipo_ok and no_cancelado and item_ok:
-            # Obtener header para fecha
-            header = fetch_header_material(doc_num, doc_year)
-            fecha_doc = ""
-            if header:
-                fecha_raw = header.get("PostingDate", "") or header.get("DocumentDate", "")
-                if fecha_raw and fecha_raw.startswith("/Date("):
-                    try:
-                        timestamp = int(fecha_raw.replace("/Date(", "").replace(")/", "")) / 1000
-                        fecha_doc = dt.fromtimestamp(timestamp).strftime("%Y-%m-%d")
-                    except:
-                        pass
+        if not header:
+            print(f"           [X] No se pudo obtener header")
+            continue
 
-            # Verificar fecha si tenemos ambas
-            fecha_ok = True
-            if fecha_factura and fecha_doc:
-                fecha_ok = fecha_doc <= fecha_factura
+        # Verificar match con header text
+        match_result = verificar_match_header_text(entrada, header, factura_datos)
 
-            if fecha_ok:
-                entrada_enriquecida = entrada.copy()
-                entrada_enriquecida["_header"] = header
-                entrada_enriquecida["_fecha_documento"] = fecha_doc
-                entradas_filtradas.append(entrada_enriquecida)
-
-                print(f"        [OK] Doc {doc_num}/{doc_year} Item {doc_item}: "
-                      f"Tipo={goods_type}, Cant={cantidad}, Mat={material}, Fecha={fecha_doc}")
-            else:
-                print(f"        [X] Doc {doc_num}/{doc_year}: Fecha {fecha_doc} > Factura {fecha_factura}")
-        else:
-            razones = []
-            if not tipo_ok:
-                razones.append(f"Tipo={goods_type}!=101")
-            if not no_cancelado:
-                razones.append("Cancelado")
-            if not item_ok:
-                razones.append(f"POItem={po_item}!={oc_item}")
-            print(f"        [X] Doc {doc_num}/{doc_year}: {', '.join(razones)}")
-
-    print(f"        Entradas que pasan filtro: {len(entradas_filtradas)}/{len(entradas)}")
-    return entradas_filtradas
-
-
-# ============================================
-# NIVEL 2: SCORING
-# ============================================
-
-def calcular_score_migo(entrada: dict, factura_datos: dict, oc_info: dict) -> dict:
-    """
-    Calcula el score de match entre una entrada de material y la factura.
-
-    Criterios:
-    - Cantidad (50%): cantidad_factura <= cantidad_recibida
-    - Material (30%): material coincide con OC
-    - Fecha (20%): mas reciente = mejor
-    """
-    # Datos de la factura
-    items_factura = factura_datos.get("Items", [])
-    cantidad_factura = 0
-    if items_factura:
-        cantidad_factura = float(items_factura[0].get("Quantity", 0) or 0)
-
-    # Datos de la entrada
-    cantidad_entrada = float(entrada.get("QuantityInEntryUnit", 0) or 0)
-    material_entrada = entrada.get("Material", "")
-    material_oc = oc_info.get("Material", "")
-    fecha_entrada = entrada.get("_fecha_documento", "")
-
-    result = {
-        "score": 0,
-        "score_cantidad": 0,
-        "score_material": 0,
-        "score_fecha": 0,
-        "cantidad_ok": False,
-        "estado_cantidad": "",
-        "detalle": {}
-    }
-
-    # 1. Score Cantidad (50%) - CRITICO
-    if cantidad_entrada <= 0:
-        result["estado_cantidad"] = "SIN_CANTIDAD"
-        result["score"] = 0
-        return result
-
-    if cantidad_factura <= cantidad_entrada:
-        result["cantidad_ok"] = True
-        if cantidad_factura < cantidad_entrada:
-            result["estado_cantidad"] = "PARCIAL"
-            # Score proporcional
-            ratio = cantidad_factura / cantidad_entrada
-            result["score_cantidad"] = ratio * MIGO_CONFIG["peso_cantidad"] * 100
-        else:
-            result["estado_cantidad"] = "OK"
-            result["score_cantidad"] = MIGO_CONFIG["peso_cantidad"] * 100
-    else:
-        result["estado_cantidad"] = "INSUFICIENTE"
-        result["cantidad_ok"] = False
-        # Penalizar pero no a cero para mostrar en debug
-        result["score_cantidad"] = 10
-
-    # 2. Score Material (30%)
-    if material_entrada and material_oc:
-        if str(material_entrada) == str(material_oc):
-            result["score_material"] = MIGO_CONFIG["peso_material"] * 100
-        else:
-            result["score_material"] = 0
-    else:
-        # Si no tenemos material para comparar, dar score parcial
-        result["score_material"] = MIGO_CONFIG["peso_material"] * 50
-
-    # 3. Score Fecha (20%) - mas reciente = mejor
-    # Por ahora dar score completo si tiene fecha
-    if fecha_entrada:
-        result["score_fecha"] = MIGO_CONFIG["peso_fecha"] * 100
-    else:
-        result["score_fecha"] = MIGO_CONFIG["peso_fecha"] * 50
-
-    # Score total
-    result["score"] = (
-        result["score_cantidad"] +
-        result["score_material"] +
-        result["score_fecha"]
-    )
-
-    result["detalle"] = {
-        "cantidad_factura": cantidad_factura,
-        "cantidad_entrada": cantidad_entrada,
-        "material_entrada": material_entrada,
-        "material_oc": material_oc,
-        "fecha_entrada": fecha_entrada,
-    }
-
-    return result
-
-
-def evaluar_migos_nivel2(entradas_filtradas: list, factura_datos: dict, oc_info: dict) -> list:
-    """
-    NIVEL 2: Scoring de entradas de material.
-    """
-    print(f"\n     NIVEL 2: Scoring de Entradas de Material")
-
-    candidatos = []
-
-    for entrada in entradas_filtradas:
-        doc_num = entrada.get("MaterialDocument", "")
-        doc_year = entrada.get("MaterialDocumentYear", "")
-        doc_item = entrada.get("MaterialDocumentItem", "")
-
-        score_result = calcular_score_migo(entrada, factura_datos, oc_info)
-        det = score_result.get("detalle", {})
-
-        # Mostrar desglose
+        # Mostrar resultado
         print(f"\n        Doc {doc_num}/{doc_year} Item {doc_item}:")
         print(f"           +-----------------------------------------------------")
-        print(f"           | CANTIDAD (peso 50%):")
-        print(f"           |   Factura: {det.get('cantidad_factura', 'N/A')} | MIGO: {det.get('cantidad_entrada', 'N/A')}")
-        print(f"           |   Estado: {score_result['estado_cantidad']} -> Score: {score_result['score_cantidad']:.1f}")
-        print(f"           +-----------------------------------------------------")
-        print(f"           | MATERIAL (peso 30%):")
-        print(f"           |   MIGO: {det.get('material_entrada', 'N/A')} | OC: {det.get('material_oc', 'N/A')}")
-        print(f"           |   -> Score: {score_result['score_material']:.1f}")
-        print(f"           +-----------------------------------------------------")
-        print(f"           | FECHA (peso 20%):")
-        print(f"           |   Fecha MIGO: {det.get('fecha_entrada', 'N/A')}")
-        print(f"           |   -> Score: {score_result['score_fecha']:.1f}")
-        print(f"           +-----------------------------------------------------")
-        print(f"           | SCORE TOTAL: {score_result['score']:.1f}/100 (minimo: {MIGO_CONFIG['score_minimo']})")
+        print(f"           | MaterialDocumentHeaderText: '{match_result['header_text']}'")
+        print(f"           | Numero Factura OCR: '{match_result['numero_factura']}'")
+        print(f"           | Resultado: {match_result['razon']}")
+        print(f"           | Cantidad en MIGO: {cantidad_entrada}")
+        print(f"           | Material: {material}")
         print(f"           +-----------------------------------------------------")
 
-        if score_result["score"] >= MIGO_CONFIG["score_minimo"] and score_result["cantidad_ok"]:
+        if match_result["match_exacto"]:
+            # Determinar estado de cantidad
+            items_factura = factura_datos.get("Items", [])
+            cantidad_factura = float(items_factura[0].get("Quantity", 0) or 0) if items_factura else 0
+
+            if cantidad_entrada >= cantidad_factura:
+                estado_cantidad = "OK" if cantidad_entrada == cantidad_factura else "DISPONIBLE"
+                cantidad_ok = True
+            else:
+                estado_cantidad = "INSUFICIENTE"
+                cantidad_ok = False
+
             candidatos.append({
                 "MaterialDocument": doc_num,
                 "MaterialDocumentYear": doc_year,
                 "MaterialDocumentItem": doc_item,
-                "match_score": score_result["score"],
-                "cantidad_entrada": det.get("cantidad_entrada", 0),
-                "estado_cantidad": score_result["estado_cantidad"],
-                "score_detail": score_result,
-                "entrada_data": entrada
+                "match_score": 100.0,  # Match exacto = score perfecto
+                "match_type": "EXACT_HEADER_TEXT",
+                "header_text": match_result["header_text"],
+                "cantidad_entrada": cantidad_entrada,
+                "estado_cantidad": estado_cantidad,
+                "cantidad_ok": cantidad_ok,
+                "entrada_data": entrada,
+                "header_data": header
             })
-            print(f"           [OK] CANDIDATO VALIDO")
+            print(f"           [OK] MATCH EXACTO - Cantidad: {estado_cantidad}")
         else:
-            if not score_result["cantidad_ok"]:
-                print(f"           [X] NO CALIFICA: Cantidad insuficiente")
-            else:
-                print(f"           [X] NO CALIFICA: Score {score_result['score']:.1f} < {MIGO_CONFIG['score_minimo']}")
+            print(f"           [X] NO COINCIDE")
 
-    # Ordenar por score y cantidad (preferir mayor cantidad disponible)
-    candidatos.sort(key=lambda x: (x["match_score"], x["cantidad_entrada"]), reverse=True)
+    # Ordenar por cantidad disponible (todos tienen score 100 si son match exacto)
+    candidatos.sort(key=lambda x: x["cantidad_entrada"], reverse=True)
 
     print(f"\n     {'='*60}")
     print(f"     RESUMEN NIVEL 2 MIGO:")
-    print(f"        Candidatos validos: {len(candidatos)}")
+    print(f"        Matches exactos encontrados: {len(candidatos)}")
     if candidatos:
         for i, c in enumerate(candidatos[:3], 1):
             print(f"        {i}. Doc {c['MaterialDocument']}/{c['MaterialDocumentYear']}: "
-                  f"Score={c['match_score']:.1f}, Cant={c['cantidad_entrada']}")
+                  f"HeaderText='{c['header_text']}', Cant={c['cantidad_entrada']}")
+    else:
+        print(f"        No se encontro MIGO con el numero de factura '{numero_factura}'")
     print(f"     {'='*60}")
 
     return candidatos
@@ -281,11 +206,15 @@ def verificar_entradas_material(
     """
     Verifica las entradas de material (MIGO) para una OC.
 
-    OBLIGATORIA: Si no hay MIGO valido, no se puede facturar.
+    OBLIGATORIA: Si no hay MIGO válido, no se puede facturar.
+
+    Proceso:
+    1. Nivel 1 (API): Filtra por OC, item, tipo movimiento 101
+    2. Nivel 2: Busca match exacto de MaterialDocumentHeaderText con número de factura
 
     Args:
         factura_datos: Datos de la factura
-        oc_info: Información de la OC seleccionada (dict con PurchaseOrder, PurchaseOrderItem, etc.)
+        oc_info: Información de la OC seleccionada
 
     Returns:
         dict con estructura:
@@ -297,6 +226,7 @@ def verificar_entradas_material(
                 "ReferenceDocumentItem": str
             },
             "match_score": float,
+            "match_type": str,
             "cantidad_disponible": float,
             "cantidad_factura": float,
             "error": str (si aplica)
@@ -304,26 +234,41 @@ def verificar_entradas_material(
     """
     purchase_order = oc_info.get("PurchaseOrder", "")
     purchase_order_item = oc_info.get("PurchaseOrderItem", "")
+    material = oc_info.get("Material", "")
+    movement_type = MIGO_CONFIG["goods_movement_type"]
+
+    # Obtener cantidad de la factura
+    cantidad_factura = factura_datos.get("Items", [{}])[0].get("Quantity", "") if factura_datos.get("Items") else ""
+    numero_factura = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
 
     print("\n" + "=" * 70)
     print("VERIFICACION DE ENTRADA DE MATERIAL (MIGO)")
     print("=" * 70)
     print(f"  OC: {purchase_order}")
     print(f"  Item OC: {purchase_order_item}")
-    print(f"  Material OC: {oc_info.get('Material', 'N/A')}")
+    print(f"  Material OC: {material}")
+    print(f"  Numero Factura: {numero_factura}")
+    print(f"  Cantidad factura: {cantidad_factura}")
 
     if not purchase_order:
         return {"status": "error", "error": "No se proporciono numero de OC"}
 
     try:
-        # Obtener entradas de material desde SAP API
-        resultado_api = fetch_entradas_material(purchase_order, purchase_order_item)
+        # NIVEL 1: Obtener entradas de material filtradas por API
+        print(f"\n  NIVEL 1: Consulta API SAP")
+        resultado_api = fetch_entradas_material(
+            purchase_order,
+            purchase_order_item,
+            movement_type,
+            cantidad_factura,
+            material
+        )
 
         if resultado_api["status"] != "success":
             return {"status": "error", "error": resultado_api.get("error", "Error al obtener entradas de material")}
 
         entradas = resultado_api["data"]
-        print(f"\n  Entradas encontradas: {len(entradas)}")
+        print(f"  Entradas encontradas: {len(entradas)}")
 
         if not entradas:
             return {
@@ -332,56 +277,41 @@ def verificar_entradas_material(
                          "No se puede facturar un producto que no ha llegado a almacen."
             }
 
-        # Filtrar solo por GoodsMovementType ya que la API no tiene ese filtro
-        entradas_tipo_101 = [
-            e for e in entradas
-            if e.get("GoodsMovementType") == MIGO_CONFIG["goods_movement_type"]
-            and not e.get("GoodsMovementIsCancelled", False)
-        ]
-
-        if not entradas_tipo_101:
-            return {
-                "status": "no_match",
-                "error": f"No hay entradas de material con tipo 101 (entrada mercancia) para la OC {purchase_order}"
-            }
-
-        # NIVEL 1: Filtrar entradas
-        entradas_filtradas = filtrar_entradas_material(entradas_tipo_101, factura_datos, oc_info)
-
-        if not entradas_filtradas:
-            return {
-                "status": "no_match",
-                "error": "Ninguna entrada de material paso los filtros (tipo movimiento/fecha/item)"
-            }
-
-        # NIVEL 2: Scoring
-        candidatos = evaluar_migos_nivel2(entradas_filtradas, factura_datos, oc_info)
+        # NIVEL 2: Verificar por MaterialDocumentHeaderText
+        candidatos = evaluar_migos_nivel2(entradas, factura_datos, oc_info)
 
         if not candidatos:
-            # Calcular cantidad total disponible para mensaje de error
-            cantidad_total = sum(float(e.get("QuantityInEntryUnit", 0) or 0) for e in entradas_filtradas)
-            items_factura = factura_datos.get("Items", [])
-            cantidad_factura = float(items_factura[0].get("Quantity", 0) or 0) if items_factura else 0
-
+            # No hubo match exacto por número de factura
             return {
                 "status": "no_match",
-                "error": f"Cantidad insuficiente en MIGO. "
-                         f"Factura requiere {cantidad_factura}, disponible en almacen: {cantidad_total}",
-                "cantidad_disponible": cantidad_total,
+                "error": f"No se encontro MIGO con numero de factura '{numero_factura}'. "
+                         f"Hay {len(entradas)} entradas de material pero ninguna tiene el numero de factura correcto.",
+                "entradas_encontradas": len(entradas)
+            }
+
+        # Verificar que el candidato tenga cantidad suficiente
+        candidatos_ok = [c for c in candidatos if c.get("cantidad_ok", False)]
+
+        if not candidatos_ok:
+            ganador = candidatos[0]
+            return {
+                "status": "no_match",
+                "error": f"MIGO encontrado pero cantidad insuficiente. "
+                         f"Factura requiere {cantidad_factura}, disponible: {ganador['cantidad_entrada']}",
+                "cantidad_disponible": ganador["cantidad_entrada"],
                 "cantidad_factura": cantidad_factura
             }
 
         # Seleccionar el mejor candidato
-        ganador = candidatos[0]
+        ganador = candidatos_ok[0]
 
         print(f"\n  MIGO SELECCIONADO:")
         print(f"     Documento: {ganador['MaterialDocument']}/{ganador['MaterialDocumentYear']}")
         print(f"     Item: {ganador['MaterialDocumentItem']}")
-        print(f"     Score: {ganador['match_score']:.1f}/100")
+        print(f"     Match: {ganador['match_type']}")
+        print(f"     HeaderText: '{ganador['header_text']}'")
         print(f"     Cantidad disponible: {ganador['cantidad_entrada']}")
-
-        items_factura = factura_datos.get("Items", [])
-        cantidad_factura = float(items_factura[0].get("Quantity", 0) or 0) if items_factura else 0
+        print(f"     Estado: {ganador['estado_cantidad']}")
 
         return {
             "status": "success",
@@ -391,6 +321,8 @@ def verificar_entradas_material(
                 "ReferenceDocumentItem": ganador["MaterialDocumentItem"]
             },
             "match_score": ganador["match_score"],
+            "match_type": ganador["match_type"],
+            "header_text": ganador["header_text"],
             "cantidad_disponible": ganador["cantidad_entrada"],
             "cantidad_factura": cantidad_factura,
             "estado_cantidad": ganador["estado_cantidad"]

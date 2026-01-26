@@ -17,8 +17,8 @@ from services.matchers.oc_matcher import (
 
 from services.matchers.migo_matcher import (
     MIGO_CONFIG,
-    filtrar_entradas_material,
-    calcular_score_migo,
+    normalizar_numero_factura,
+    verificar_match_header_text,
     evaluar_migos_nivel2,
     verificar_entradas_material,
 )
@@ -32,8 +32,8 @@ __all__ = [
     "obtener_ordenes_compra_proveedor",
     # MIGO Matcher
     "MIGO_CONFIG",
-    "filtrar_entradas_material",
-    "calcular_score_migo",
+    "normalizar_numero_factura",
+    "verificar_match_header_text",
     "evaluar_migos_nivel2",
     "verificar_entradas_material",
 ]

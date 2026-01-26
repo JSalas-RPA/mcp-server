@@ -474,7 +474,6 @@ class FlujoVerificado:
             oc_items = oc_data.get('oc_items', [])
             needs_migo = oc_data.get('needs_migo', False)
             match_score = oc_data.get('match_score', 0)
-
             print(f"  OC Seleccionada: {oc_data.get('selected_purchase_order')}")
             print(f"  Item: {oc_data.get('selected_purchase_order_item')}")
             print(f"  Score: {match_score:.1f}/100")
