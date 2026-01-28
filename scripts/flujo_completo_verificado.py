@@ -854,6 +854,7 @@ Ejemplos:
     print("=" * 70)
     if resultado.get("success"):
         print("  Resultado: EXITO")
+        print("  Número de factura:", resultado.get("d", {}).get("SupplierInvoice", "N/A"))
     else:
         print(f"  Resultado: ERROR - {resultado.get('error', 'Desconocido')}")
     print(f"  Log: {resultado.get('log_path', 'N/A')}")

@@ -284,15 +284,21 @@ def construir_json_factura_sap(
     print(f"  AGREGANDO {len(oc_items)} ITEMS DE OC:")
 
     for idx, oc in enumerate(oc_items, start=1):
+        raw_amount = oc.get("SupplierInvoiceItemAmount", 0.0)
+        invoice_item_amount = float(str(raw_amount).replace(",", "").strip())
+        invoice_item_amount = invoice_item_amount/(1.149425)  # Ajuste por IGV 13% (temporal hasta corregir en SAP)
+        invoice_item_amount_str = f"{invoice_item_amount:.0f}"
+        print(f"     Calculando monto item {idx}: Original {oc.get('SupplierInvoiceItemAmount', 0.0)} -> Ajustado {invoice_item_amount_str}")
         item = {
             "SupplierInvoiceItem": str(idx).zfill(5),
             "PurchaseOrder": oc.get("PurchaseOrder", ""),
-            "PurchaseOrderItem": oc.get("PurchaseOrderItem", "00010"),
+            "PurchaseOrderItem": oc.get("PurchaseOrderItem", ""),
             "DocumentCurrency": "BOB",
-            "QuantityInPurchaseOrderUnit": oc.get("QuantityInPurchaseOrderUnit", "1.000"),
+            "QuantityInPurchaseOrderUnit": oc.get("QuantityInPurchaseOrderUnit", ""),
             "PurchaseOrderQuantityUnit": oc.get("PurchaseOrderQuantityUnit", ""),
-            "SupplierInvoiceItemAmount": invoice_amount_str,
-            "TaxCode": oc.get("TaxCode", "V0")
+            "SupplierInvoiceItemAmount": invoice_item_amount_str,
+            #"TaxCode": oc.get("TaxCode", "V0")
+            "TaxCode": "C1"
         }
 
         # Solo agregar campos ReferenceDocument si needs_migo es True

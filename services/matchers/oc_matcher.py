@@ -119,6 +119,7 @@ def calcular_score_item(item_ocr: dict, item_sap: dict, usar_ia_descripcion: boo
 
     # Extraer datos SAP
     precio_sap = float(item_sap.get("NetPriceAmount", 0) or 0)
+    precio_sap = precio_sap*1.149425  # Ajuste por IGV 13% (temporal hasta corregir en SAP)
     cantidad_sap = float(item_sap.get("OrderQuantity", 0) or 0)
     descripcion_sap = item_sap.get("PurchaseOrderItemText", "")
     material_sap = str(item_sap.get("Material", "") or "")
@@ -221,10 +222,166 @@ def calcular_score_item(item_ocr: dict, item_sap: dict, usar_ia_descripcion: boo
     return result
 
 
+def _emparejar_items_por_descripcion(items_factura: list, items_oc: list) -> list:
+    """
+    Empareja items de factura con items de OC usando similitud de descripción.
+    Usa algoritmo greedy: para cada item de factura, busca el mejor match en OC
+    que aún no haya sido emparejado.
+
+    Returns:
+        Lista de tuplas: [(idx_factura, idx_oc, similitud), ...]
+    """
+    from utilities.text_utils import calcular_similitud_descripcion
+
+    emparejamientos = []
+    oc_usados = set()
+
+    for idx_fac, item_fac in enumerate(items_factura):
+        desc_fac = item_fac.get("Description", "")
+        mejor_similitud = 0
+        mejor_idx_oc = None
+
+        for idx_oc, item_oc in enumerate(items_oc):
+            if idx_oc in oc_usados:
+                continue
+
+            desc_oc = item_oc.get("PurchaseOrderItemText", "")
+            similitud = calcular_similitud_descripcion(desc_fac, desc_oc)
+
+            if similitud > mejor_similitud:
+                mejor_similitud = similitud
+                mejor_idx_oc = idx_oc
+
+        if mejor_idx_oc is not None:
+            emparejamientos.append((idx_fac, mejor_idx_oc, mejor_similitud))
+            oc_usados.add(mejor_idx_oc)
+
+    return emparejamientos
+
+
+def _evaluar_oc_con_matching_1a1(oc: dict, items_factura: list, monto_factura: float) -> dict | None:
+    """
+    Evalúa una OC cuando tiene la misma cantidad de items que la factura.
+    Hace matching 1-a-1 entre items de factura e items de OC.
+
+    Returns:
+        dict candidato si todos los items pasan, None si alguno falla
+    """
+    oc_num = oc.get("PurchaseOrder", "")
+    items_oc = oc.get("to_PurchaseOrderItem", {}).get("results", [])
+
+    # Filtrar items de OC que ya están facturados
+    items_oc_disponibles = [
+        item for item in items_oc
+        if not item.get("IsFinallyInvoiced", False)
+    ]
+
+    if len(items_factura) != len(items_oc_disponibles):
+        return None  # No aplica matching 1-a-1
+
+    print(f"\n     {'='*60}")
+    print(f"     Evaluando OC {oc_num} - MODO MATCHING 1-a-1")
+    print(f"     (Factura: {len(items_factura)} items, OC: {len(items_oc_disponibles)} items disponibles)")
+    print(f"     {'='*60}")
+
+    # Emparejar items por descripción
+    emparejamientos = _emparejar_items_por_descripcion(items_factura, items_oc_disponibles)
+
+    print(f"\n     EMPAREJAMIENTO POR DESCRIPCION:")
+    for idx_fac, idx_oc, sim in emparejamientos:
+        desc_fac = items_factura[idx_fac].get("Description", "N/A")[:30]
+        desc_oc = items_oc_disponibles[idx_oc].get("PurchaseOrderItemText", "N/A")[:30]
+        print(f"        Factura[{idx_fac+1}] '{desc_fac}...'")
+        print(f"        -> OC[{items_oc_disponibles[idx_oc].get('PurchaseOrderItem')}] '{desc_oc}...'")
+        print(f"           Similitud descripcion: {sim*100:.1f}%")
+
+    # Evaluar cada par
+    scores = []
+    items_mapping = []
+    all_passed = True
+    any_needs_migo = False
+    any_parcial = False
+
+    for idx_fac, idx_oc, _ in emparejamientos:
+        item_factura = items_factura[idx_fac]
+        item_oc = items_oc_disponibles[idx_oc]
+        oc_item_num = item_oc.get("PurchaseOrderItem", "")
+
+        print(f"\n        EVALUANDO PAR: Factura[{idx_fac+1}] vs OC Item {oc_item_num}")
+
+        score_result = calcular_score_item(item_factura, item_oc, usar_ia_descripcion=True)
+        scores.append(score_result["score"])
+
+        sr = score_result
+        det = sr.get("detalle", {})
+
+        print(f"           +-----------------------------------------------------")
+        print(f"           | PRECIO UNITARIO:")
+        print(f"           |   OCR: {det.get('precio_ocr', 'N/A')} | SAP: {det.get('precio_sap', 'N/A')}")
+        print(f"           |   Coincide: {'Si' if sr['precio_unitario_ok'] else 'No'} (dif: {sr['diferencia_precio']*100:.1f}%)")
+        print(f"           +-----------------------------------------------------")
+        print(f"           | CANTIDAD: OCR: {det.get('cantidad_ocr', 'N/A')} | SAP: {det.get('cantidad_sap', 'N/A')}")
+        print(f"           |   Estado: {sr['estado_cantidad']} -> Score: {sr['score_cantidad']:.1f}")
+        print(f"           +-----------------------------------------------------")
+        print(f"           | MONTO: OCR: {det.get('monto_ocr', 'N/A')} | SAP: {det.get('monto_sap', 'N/A')}")
+        print(f"           |   Estado: {sr['estado_monto']} -> Score: {sr['score_monto']:.1f}")
+        print(f"           +-----------------------------------------------------")
+        print(f"           | DESCRIPCION:")
+        print(f"           |   OCR: \"{det.get('descripcion_ocr', 'N/A')}\"")
+        print(f"           |   SAP: \"{det.get('descripcion_sap', 'N/A')}\"")
+        print(f"           |   -> Score: {sr['score_descripcion']:.1f}")
+        print(f"           +-----------------------------------------------------")
+        print(f"           | SCORE PAR: {sr['score']:.1f}/100 (minimo: {SCORE_CONFIG['score_minimo']})")
+        print(f"           +-----------------------------------------------------")
+
+        if score_result["score"] < SCORE_CONFIG["score_minimo"]:
+            print(f"           [X] FALLA: Score {sr['score']:.1f} < {SCORE_CONFIG['score_minimo']}")
+            all_passed = False
+        else:
+            print(f"           [OK] PASA: Score {sr['score']:.1f} >= {SCORE_CONFIG['score_minimo']}")
+
+        if item_oc.get("InvoiceIsGoodsReceiptBased", False):
+            any_needs_migo = True
+
+        if score_result["es_factura_parcial"]:
+            any_parcial = True
+
+        items_mapping.append({
+            "ocr_position": idx_fac + 1,
+            "purchase_order_item": oc_item_num,
+            "material": item_oc.get("Material", ""),
+            "quantity_matched": score_result["estado_cantidad"] != "EXCESO",
+            "score": score_result["score"]
+        })
+
+    if all_passed:
+        avg_score = sum(scores) / len(scores) if scores else 0
+        print(f"\n     [OK] TODOS LOS ITEMS PASAN - Score promedio: {avg_score:.1f}")
+
+        return {
+            "status": "success",
+            "selected_purchase_order": oc_num,
+            "selected_purchase_order_item": items_mapping[0]["purchase_order_item"],  # Primer item
+            "needs_migo": any_needs_migo,
+            "match_score": avg_score,
+            "es_factura_parcial": any_parcial,
+            "items_mapping": items_mapping,
+            "item_oc_data": items_oc_disponibles[emparejamientos[0][1]],  # Primer item OC
+            "all_items_oc_data": [items_oc_disponibles[idx_oc] for _, idx_oc, _ in emparejamientos],
+            "score_detail": {"modo": "matching_1a1", "scores_individuales": scores}
+        }
+    else:
+        print(f"\n     [X] OC {oc_num} NO CALIFICA: Algun item no paso el score minimo")
+        return None
+
+
 def evaluar_ocs_nivel2(ocs_filtradas: list, factura_datos: dict) -> list:
     """
     NIVEL 2: Scoring a nivel de Items.
     Para cada OC filtrada, evalúa sus items contra los items de la factura.
+
+    Si la cantidad de items de la factura coincide con la OC, usa matching 1-a-1.
+    Si no coinciden, usa el método original de mejor match por item.
 
     Returns:
         Lista de candidatos ordenados por score con toda la info necesaria
@@ -265,11 +422,24 @@ def evaluar_ocs_nivel2(ocs_filtradas: list, factura_datos: dict) -> list:
             print(f"\n     [!] OC {oc_num}: Sin items expandidos")
             continue
 
+        # Filtrar items ya facturados para contar disponibles
+        items_oc_disponibles = [
+            item for item in items_oc
+            if not item.get("IsFinallyInvoiced", False)
+        ]
+
+        # ESTRATEGIA: Si la cantidad de items coincide, usar matching 1-a-1
+        if len(items_factura) == len(items_oc_disponibles) and len(items_factura) > 1:
+            candidato = _evaluar_oc_con_matching_1a1(oc, items_factura, monto_factura)
+            if candidato:
+                candidatos.append(candidato)
+            continue  # Ya evaluamos esta OC con matching 1-a-1
+
+        # ESTRATEGIA ORIGINAL: Evaluar cada item de OC buscando mejor match
         print(f"\n     {'='*60}")
-        print(f"     Evaluando OC {oc_num} ({len(items_oc)} items):")
+        print(f"     Evaluando OC {oc_num} ({len(items_oc)} items) - MODO MEJOR MATCH:")
         print(f"     {'='*60}")
 
-        # Evaluar cada combinación item_factura vs item_oc
         for item_oc in items_oc:
             oc_item_num = item_oc.get("PurchaseOrderItem", "")
             is_finally_invoiced = item_oc.get("IsFinallyInvoiced", False)
@@ -279,7 +449,7 @@ def evaluar_ocs_nivel2(ocs_filtradas: list, factura_datos: dict) -> list:
             material_sap = item_oc.get("Material", "N/A")
 
             print(f"\n        Item OC {oc_item_num}:")
-            print(f"           SAP Descripcion: {descripcion_sap[:50]}")
+            print(f"           SAP Descripcion: {descripcion_sap[:50] if isinstance(descripcion_sap, str) else descripcion_sap}")
             print(f"           SAP Material: {material_sap}")
             print(f"           SAP Precio Unit: {precio_sap}")
             print(f"           SAP Cantidad: {cantidad_sap}")
@@ -310,7 +480,7 @@ def evaluar_ocs_nivel2(ocs_filtradas: list, factura_datos: dict) -> list:
 
                 print(f"\n           DESGLOSE SCORING:")
                 print(f"           +-----------------------------------------------------")
-                print(f"           | COMPARACION: Factura vs OC {oc_item_num}")
+                print(f"           | COMPARACION: Factura[{mejor_match['ocr_position']}] vs OC {oc_item_num}")
                 print(f"           +-----------------------------------------------------")
                 print(f"           | PRECIO UNITARIO:")
                 print(f"           |   OCR: {det.get('precio_ocr', 'N/A')} | SAP: {det.get('precio_sap', 'N/A')}")
