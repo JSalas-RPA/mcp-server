@@ -88,7 +88,7 @@
     },
     "pharma-melvin-22-12.pdf": {
       "ocr_esperado": {
-        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "keywords_requeridos": ["Ornitorrinco", "Perry", "Capibara"],
         "texto_minimo_caracteres": 200,
         "patron_nit": "\\d{7,10}",
         "patron_monto": "\\d+[,.]?\\d*"

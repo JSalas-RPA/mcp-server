@@ -48,6 +48,7 @@ from tools import (
     verificar_entrada_material,
     construir_json_factura,
     enviar_factura_sap,
+    notificar_error_admin,
 )
 from utilities.file_storage import download_pdf_to_tempfile
 
@@ -233,6 +234,11 @@ class FlujoVerificado:
         except StageFailure as e:
             logger.error(f"Fallo en etapa: {e}")
             resultado["error"] = str(e)
+            try:
+                notificar_error_admin(error=str(e))
+            except Exception:
+                print("Error al enviar notificación de error por correo.")
+                pass
         except Exception as e:
             logger.exception(f"Error inesperado: {e}")
             resultado["error"] = str(e)

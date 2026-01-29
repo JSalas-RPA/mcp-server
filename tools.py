@@ -26,7 +26,7 @@ import logging
 
 from utilities.ocr import get_transcript_document_cloud_vision
 from utilities.file_storage import download_pdf_to_tempfile
-from utilities.email_client import EmailClient
+from utilities.email_client import send_email
 from services.sap_operations import (
     extraer_datos_factura_desde_texto,
     obtener_proveedores_sap,
@@ -435,22 +435,24 @@ def enviar_factura_sap(factura_json: dict) -> dict:
 # ============================================================================
 # Tools para enviar correos de notificación en caso de errores críticos
 # ============================================================================
-def notificar_error_admin(error_: str, cuerpo: str) -> dict:
+def notificar_error_admin(error: str) -> dict:
     """
     [ACTIVA] Envía un correo de notificación al administrador.
 
-    .
-
     Args:
-        
+        subject: Asunto del correo
+        body: Cuerpo del correo
 
     Returns:
-        
+        dict con keys:
+            - status: "success" o "error"
+            - data: respuesta de envío (si success)
+            - error: mensaje de error (si error)
     """
     try:
         logger.info("Enviando correo...")
 
-        respuesta = enviar_correo_admin(error_, cuerpo)
+        respuesta = send_email(error)
 
         if respuesta:
             return {

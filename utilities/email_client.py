@@ -6,27 +6,32 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-class EmailClient:
-    def __init__(self):
-        self.server = os.getenv("SMTP_SERVER")
-        self.port = int(os.getenv("SMTP_PORT", 587))
-        self.user = os.getenv("SMTP_USER")
-        self.password = os.getenv("SMTP_PASSWORD")
-        self.sender = os.getenv("EMAIL_FROM")
+# Configuración del servidor SMTP y credenciales
+smtp_server = os.getenv("SMTP_SERVER")
+port = int(os.getenv("SMTP_PORT", 587))
+user = os.getenv("SMTP_USER")
+password = os.getenv("SMTP_PASSWORD")
+sender = os.getenv("EMAIL_FROM")
+recipient = os.getenv("ADMIN_EMAIL")
 
-    def send_email(self, recipient, subject, body):
+def send_email(error):
         try:
+            print("Enviando email de notificación de error...")
             msg = MIMEMultipart()
-            msg['From'] = self.sender
+            msg['From'] = sender
             msg['To'] = recipient
-            msg['Subject'] = subject
+            msg['Subject'] = "Notificación de Error en el Sistema"
 
-            msg.attach(MIMEText(body, 'html'))
+            msg.attach(MIMEText(error, 'plain'))
 
-            with smtplib.SMTP(self.server, self.port) as server:
+            with smtplib.SMTP(smtp_server, port) as server:
                 server.starttls()
-                server.login(self.user, self.password)
+                server.login(user, password)
                 server.send_message(msg)
             return True, "Email enviado con éxito"
         except Exception as e:
+            print(f"Error enviando email: {str(e)}")
             return False, f"Error enviando email: {str(e)}"
+        
+
+    
