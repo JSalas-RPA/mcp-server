@@ -119,7 +119,7 @@ def calcular_score_item(item_ocr: dict, item_sap: dict, usar_ia_descripcion: boo
 
     # Extraer datos SAP
     precio_sap = float(item_sap.get("NetPriceAmount", 0) or 0)
-    precio_sap = precio_sap*1.149425  # Ajuste por IGV 13% (temporal hasta corregir en SAP)
+    precio_sap = precio_sap*(1+(13/87))  # Ajuste por IGV 13% (temporal hasta corregir en SAP)
     cantidad_sap = float(item_sap.get("OrderQuantity", 0) or 0)
     descripcion_sap = item_sap.get("PurchaseOrderItemText", "")
     material_sap = str(item_sap.get("Material", "") or "")
