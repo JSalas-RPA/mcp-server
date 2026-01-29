@@ -286,8 +286,8 @@ def construir_json_factura_sap(
     for idx, oc in enumerate(oc_items, start=1):
         raw_amount = oc.get("SupplierInvoiceItemAmount", 0.0)
         invoice_item_amount = float(str(raw_amount).replace(",", "").strip())
-        invoice_item_amount = invoice_item_amount/(1.149425)  # Ajuste por IGV 13% (temporal hasta corregir en SAP)
-        invoice_item_amount_str = f"{invoice_item_amount:.0f}"
+        invoice_item_amount = invoice_item_amount/(1+(13/87))  # Ajuste por IGV 13% (temporal hasta corregir en SAP)
+        invoice_item_amount_str = str(invoice_item_amount)
         print(f"     Calculando monto item {idx}: Original {oc.get('SupplierInvoiceItemAmount', 0.0)} -> Ajustado {invoice_item_amount_str}")
         item = {
             "SupplierInvoiceItem": str(idx).zfill(5),
