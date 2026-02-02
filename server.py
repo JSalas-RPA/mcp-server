@@ -24,6 +24,7 @@ import os
 from fastmcp import FastMCP
 from tools import (
     extraer_texto_pdf,
+    notificar_error_admin,
     parsear_datos_factura,
     validar_proveedor_sap,
     obtener_ordenes_compra,
@@ -106,24 +107,22 @@ def validar_proveedor(nombre_proveedor: str, nit_proveedor: str = "") -> dict:
 @mcp.tool()
 def buscar_ordenes_compra(
     supplier_code: str,
-    descripcion_producto: str = "",
-    monto_factura: float = 0.0,
-    tax_code: str = ""
+    factura_datos: dict = None,
+    tax_code: str = "V0"
 ) -> dict:
     """
     Obtiene órdenes de compra de un proveedor en SAP.
 
     Args:
         supplier_code: Código SAP del proveedor (ej: "0000001234")
-        descripcion_producto: Descripción del producto en la factura
-        monto_factura: Monto total de la factura
+        factura_datos: Datos completos de la factura (del parseo OCR)
         tax_code: Código de impuesto (ej: "V0")
 
     Returns:
-        dict con status (success/not_found/error), data (lista OCs) o error
+        dict con status (success/not_found/duplicate_requires_intervention/error), data (OC seleccionada) o error
     """
     logger.info(f"Tool 'buscar_ordenes_compra' llamada con supplier_code={supplier_code}")
-    resultado = obtener_ordenes_compra(supplier_code, descripcion_producto, monto_factura, tax_code)
+    resultado = obtener_ordenes_compra(supplier_code, factura_datos, tax_code)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
@@ -158,7 +157,13 @@ def verificar_migo(
 # ============================================================================
 
 @mcp.tool()
-def construir_json(factura_datos: dict, proveedor_info: dict, oc_items: list) -> dict:
+def construir_json(
+    factura_datos: dict,
+    proveedor_info: dict,
+    oc_items: list,
+    needs_migo: bool = False,
+    reference_document: dict = None
+) -> dict:
     """
     Construye el JSON de factura en formato SAP.
 
@@ -166,12 +171,14 @@ def construir_json(factura_datos: dict, proveedor_info: dict, oc_items: list) ->
         factura_datos: Datos extraídos de la factura
         proveedor_info: Información del proveedor SAP
         oc_items: Lista de órdenes de compra
+        needs_migo: Si True, incluye campos ReferenceDocument (requiere MIGO)
+        reference_document: Datos del documento de referencia (MIGO) si needs_migo=True
 
     Returns:
         dict con status, data (JSON para SAP) o error
     """
     logger.info(f"Tool 'construir_json' llamada")
-    resultado = construir_json_factura(factura_datos, proveedor_info, oc_items)
+    resultado = construir_json_factura(factura_datos, proveedor_info, oc_items, needs_migo, reference_document)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
@@ -192,6 +199,23 @@ def enviar_a_sap(factura_json: dict) -> dict:
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
+@mcp.tool()
+def enviar_correo(destinatario: str, asunto: str, cuerpo: str) -> dict:
+    """
+    Envía un correo electrónico.
+
+    Args:
+        destinatario: Dirección de correo del destinatario
+        asunto: Asunto del correo
+        cuerpo: Cuerpo del correo
+
+    Returns:
+        dict con status (success/error) y mensaje
+    """
+    logger.info(f"Tool 'enviar_correo' llamada")
+    resultado = notificar_error_admin(destinatario, asunto, cuerpo)
+    logger.info(f"Resultado: {resultado.get('status')}")
+    return resultado
 
 # ============================================================================
 # EJECUCIÓN DEL SERVIDOR
