@@ -28,13 +28,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Importar las tools desde el catálogo
-from tools import (
-    extraer_texto_pdf,
-    parsear_datos_factura,
-    validar_proveedor_sap,
-    obtener_ordenes_compra,
-    construir_json_factura,
-    enviar_factura_sap,
+from server import (
+    enviar_correo,
+    extraer_texto,
+    parsear_factura,
+    validar_proveedor,
+    buscar_ordenes_compra,
+    verificar_migo,
+    construir_json,
+    enviar_a_sap,
+    send_email,
 )
 
 
@@ -106,7 +109,7 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     print_header(1, "EXTRACCIÓN DE TEXTO (OCR)")
     print(f"Extrayendo texto de: {source}")
 
-    resultado = extraer_texto_pdf(source)
+    resultado = extraer_texto(source)
     if not print_result(resultado, show_data=False):
         print("❌ No se pudo extraer texto. Abortando flujo.")
         return False
@@ -121,25 +124,19 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     print_header(2, "PARSING DE DATOS DE FACTURA")
     print("Extrayendo datos estructurados con OpenAI...")
 
-    resultado = parsear_datos_factura(texto_extraido)
+    resultado = parsear_factura(texto_extraido)
     if not print_result(resultado):
         print("❌ No se pudieron parsear los datos. Abortando flujo.")
         return False
 
-    datos_factura = resultado['data']
+    datos_factura = resultado
 
     # =========================================================================
     # PASO 3: Validar proveedor en SAP
     # =========================================================================
     print_header(3, "VALIDACIÓN DE PROVEEDOR EN SAP")
 
-    nombre_proveedor = datos_factura.get('SupplierName', '')
-    nit_proveedor = datos_factura.get('SupplierTaxNumber', '')
-
-    print(f"Buscando proveedor: {nombre_proveedor}")
-    print(f"NIT: {nit_proveedor}")
-
-    resultado = validar_proveedor_sap(nombre_proveedor, nit_proveedor)
+    resultado = validar_proveedor(datos_factura)
     if not print_result(resultado):
         print("❌ Proveedor no encontrado en SAP. Abortando flujo.")
         return False
@@ -152,13 +149,12 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     print_header(4, "BÚSQUEDA DE ÓRDENES DE COMPRA")
 
     supplier_code = proveedor_info.get('Supplier', '')
-    tax_code = datos_factura.get('TaxCode', 'V0')
 
     print(f"Proveedor SAP: {supplier_code}")
     print(f"Monto factura: {datos_factura.get('InvoiceGrossAmount', 0.0)}")
 
     # Nueva llamada con datos completos de factura para scoring
-    resultado = obtener_ordenes_compra(supplier_code, datos_factura, tax_code)
+    resultado = buscar_ordenes_compra(datos_factura, supplier_code)
 
     if resultado.get('status') == 'duplicate_requires_intervention':
         print("⚠️  Múltiples OCs con score similar, requiere intervención manual:")
@@ -191,7 +187,6 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     # PASO 4.5: VERIFICACIÓN OBLIGATORIA DE ENTRADA DE MATERIAL (MIGO)
     # =========================================================================
     print_header("4.5", "VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO) - OBLIGATORIA")
-    from services.sap_operations import verificar_entradas_material
 
     oc_info_para_migo = {
         "PurchaseOrder": selected_oc,
@@ -199,7 +194,7 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
         "Material": material_oc
     }
 
-    resultado_migo = verificar_entradas_material(datos_factura, oc_info_para_migo)
+    resultado_migo = verificar_migo(datos_factura, oc_info_para_migo)
 
     if resultado_migo.get("status") != "success":
         error_msg = resultado_migo.get("error", "No se encontró entrada de material")
@@ -225,7 +220,7 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     print_header(5, "CONSTRUCCIÓN DE JSON PARA SAP")
     print("Construyendo payload para SAP...")
 
-    resultado = construir_json_factura(
+    resultado = construir_json(
         datos_factura,
         proveedor_info,
         oc_items,
@@ -255,7 +250,7 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     else:
         print("📤 Enviando factura a SAP...")
 
-        resultado = enviar_factura_sap(factura_json)
+        resultado = enviar_a_sap(factura_json)
         if not print_result(resultado):
             print("❌ Error al enviar a SAP.")
             return False
@@ -325,6 +320,10 @@ def main():
         sys.exit(130)
     except Exception as e:
         print(f"\n❌ Error inesperado: {e}")
+        enviar_correo(
+            subject="Error en flujo completo de procesamiento de factura",
+            body=f"Ocurrió un error inesperado:\n\n{str(e)}"
+        )
         logger.exception(e)
         sys.exit(1)
 

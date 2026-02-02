@@ -22,15 +22,18 @@ import logging
 import os
 
 from fastmcp import FastMCP
-from tools import (
-    extraer_texto_pdf,
-    notificar_error_admin,
-    parsear_datos_factura,
-    validar_proveedor_sap,
-    obtener_ordenes_compra,
-    verificar_entrada_material,
-    construir_json_factura,
-    enviar_factura_sap,
+
+from utilities.ocr import get_transcript_document_cloud_vision
+from utilities.file_storage import download_pdf_to_tempfile
+from utilities.email_client import send_email
+from services.sap_operations import (
+    extraer_datos_factura_desde_texto,
+    obtener_proveedores_sap,
+    buscar_proveedor_en_sap,
+    obtener_ordenes_compra_proveedor,
+    verificar_entradas_material,
+    construir_json_factura_sap,
+    enviar_factura_a_sap,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,11 +58,34 @@ def extraer_texto(ruta_gcs: str) -> dict:
     Returns:
         dict con status, data (texto) o error
     """
-    logger.info(f"Tool 'extraer_texto' llamada con ruta_gcs={ruta_gcs}")
-    resultado = extraer_texto_pdf(ruta_gcs)
-    logger.info(f"Resultado: {resultado.get('status')}")
-    return resultado
+    ruta_temp = None
+    try:
+        logger.info(f"Iniciando extracción de texto desde: {ruta_gcs}")
+        # Descargar PDF a archivo temporal
+        ruta_temp = download_pdf_to_tempfile(ruta_gcs)
+        logger.info(f"Archivo temporal descargado: {ruta_temp}")
+        # OCR con Cloud Vision
+        logger.info("Extrayendo texto con Cloud Vision")
+        texto_factura = get_transcript_document_cloud_vision(ruta_temp)
+        logger.info(f"Texto extraído (primeros 2000 caracteres):\n{texto_factura[:2000]}")
 
+        return {
+            "status": "success",
+            "data": texto_factura
+        }
+
+    except Exception as e:
+        error_msg = f"Error al extraer texto del PDF: {str(e)}"
+        logger.error(error_msg)
+        return {"status": "error", "error": str(e)}
+
+    finally:
+        try:
+            if ruta_temp and os.path.exists(ruta_temp):
+                os.remove(ruta_temp)
+                logger.info(f"Archivo temporal eliminado: {ruta_temp}")
+        except Exception as e:
+            logger.warning(f"No se pudo eliminar el archivo temporal: {str(e)}")
 
 # ============================================================================
 # TOOLS DE PARSING
@@ -77,7 +103,7 @@ def parsear_factura(texto_factura: str) -> dict:
         dict con status, data (campos estructurados) o error
     """
     logger.info(f"Tool 'parsear_factura' llamada")
-    resultado = parsear_datos_factura(texto_factura)
+    resultado = extraer_datos_factura_desde_texto(texto_factura)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
@@ -87,19 +113,26 @@ def parsear_factura(texto_factura: str) -> dict:
 # ============================================================================
 
 @mcp.tool()
-def validar_proveedor(nombre_proveedor: str, nit_proveedor: str = "") -> dict:
+def validar_proveedor(factura_datos: dict) -> dict:
     """
     Valida y busca un proveedor en SAP S4HANA.
 
     Args:
-        nombre_proveedor: Nombre del proveedor
+        factura_datos: Datos estructurados de la factura (del parseo OCR)
         nit_proveedor: NIT/Tax Number (opcional pero recomendado)
 
     Returns:
         dict con status (success/not_found/error), data o error
     """
-    logger.info(f"Tool 'validar_proveedor' llamada con nombre={nombre_proveedor}, nit={nit_proveedor}")
-    resultado = validar_proveedor_sap(nombre_proveedor, nit_proveedor)
+    logger.info(f"Tool 'validar_proveedor' llamada con factura_datos={factura_datos}")
+    proveedores_sap = obtener_proveedores_sap()
+    if not proveedores_sap:
+        logger.error("No se pudieron obtener proveedores de SAP")
+        return {
+            "status": "error",
+            "error": "No se pudieron obtener proveedores de SAP"
+        }
+    resultado = buscar_proveedor_en_sap(factura_datos, proveedores_sap=proveedores_sap)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
@@ -108,7 +141,6 @@ def validar_proveedor(nombre_proveedor: str, nit_proveedor: str = "") -> dict:
 def buscar_ordenes_compra(
     supplier_code: str,
     factura_datos: dict = None,
-    tax_code: str = "V0"
 ) -> dict:
     """
     Obtiene órdenes de compra de un proveedor en SAP.
@@ -122,15 +154,13 @@ def buscar_ordenes_compra(
         dict con status (success/not_found/duplicate_requires_intervention/error), data (OC seleccionada) o error
     """
     logger.info(f"Tool 'buscar_ordenes_compra' llamada con supplier_code={supplier_code}")
-    resultado = obtener_ordenes_compra(supplier_code, factura_datos, tax_code)
+    resultado = obtener_ordenes_compra_proveedor(supplier_code, factura_datos)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
 
 @mcp.tool()
 def verificar_migo(
-    purchase_order: str,
-    purchase_order_item: str = "",
     factura_datos: dict = None,
     oc_info: dict = None
 ) -> dict:
@@ -138,16 +168,14 @@ def verificar_migo(
     Verifica la entrada de material (MIGO) para una orden de compra.
 
     Args:
-        purchase_order: Número de orden de compra (ej: "4500000098")
-        purchase_order_item: Ítem de la OC (opcional)
         factura_datos: Datos de la factura (opcional)
         oc_info: Información de la OC seleccionada (opcional)
 
     Returns:
         dict con status (success/not_found/error), data (entradas de material) o error
     """
-    logger.info(f"Tool 'verificar_migo' llamada con purchase_order={purchase_order}")
-    resultado = verificar_entrada_material(purchase_order, purchase_order_item, factura_datos, oc_info)
+    logger.info(f"Tool 'verificar_migo' llamada con purchase_order={oc_info.get('PurchaseOrder') if oc_info else 'N/A'}")
+    resultado = verificar_entradas_material(factura_datos, oc_info)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
@@ -178,7 +206,7 @@ def construir_json(
         dict con status, data (JSON para SAP) o error
     """
     logger.info(f"Tool 'construir_json' llamada")
-    resultado = construir_json_factura(factura_datos, proveedor_info, oc_items, needs_migo, reference_document)
+    resultado = construir_json_factura_sap(factura_datos, proveedor_info, oc_items, needs_migo, reference_document)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
@@ -195,7 +223,7 @@ def enviar_a_sap(factura_json: dict) -> dict:
         dict con status, data (respuesta SAP) o error
     """
     logger.info(f"Tool 'enviar_a_sap' llamada")
-    resultado = enviar_factura_sap(factura_json)
+    resultado = enviar_factura_a_sap(factura_json)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
@@ -213,7 +241,7 @@ def enviar_correo(destinatario: str, asunto: str, cuerpo: str) -> dict:
         dict con status (success/error) y mensaje
     """
     logger.info(f"Tool 'enviar_correo' llamada")
-    resultado = notificar_error_admin(destinatario, asunto, cuerpo)
+    resultado = send_email(destinatario, asunto, cuerpo)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
