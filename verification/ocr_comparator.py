@@ -27,7 +27,7 @@ class OCRComparator:
     def _get_gcv_text(self, pdf_path: str) -> Optional[str]:
         """Extrae texto usando Google Cloud Vision."""
         try:
-            from utilities.general import get_transcript_document_cloud_vision
+            from utilities.ocr import get_transcript_document_cloud_vision
             return get_transcript_document_cloud_vision(pdf_path)
         except Exception as e:
             logger.error(f"Error en Google Cloud Vision OCR: {e}")
@@ -36,7 +36,7 @@ class OCRComparator:
     def _get_llamaparse_text(self, pdf_path: str) -> Optional[str]:
         """Extrae texto usando LlamaParse."""
         try:
-            from utilities.general import get_transcript_document
+            from utilities.ocr import get_transcript_document
             return get_transcript_document(pdf_path)
         except Exception as e:
             logger.error(f"Error en LlamaParse OCR: {e}")
@@ -45,7 +45,7 @@ class OCRComparator:
     def _get_pymupdf_text(self, pdf_path: str) -> Optional[str]:
         """Extrae texto usando PyMuPDF (solo para PDFs nativos con texto)."""
         try:
-            from utilities.general import extract_text_from_first_page
+            from utilities.ocr import extract_text_from_first_page
             text = extract_text_from_first_page(pdf_path)
             if text and not text.startswith("ERROR"):
                 return text

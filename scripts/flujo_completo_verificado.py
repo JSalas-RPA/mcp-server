@@ -49,7 +49,7 @@ from tools import (
     construir_json_factura,
     enviar_factura_sap,
 )
-from utilities.image_storage import download_pdf_to_tempfile
+from utilities.file_storage import download_pdf_to_tempfile
 
 # Imports del sistema de verificación
 from verification.ground_truth import GroundTruthManager
@@ -189,25 +189,36 @@ class FlujoVerificado:
             )
             self._check_exit(3)
 
-            # ETAPA 4: Búsqueda OC
-            resultado["oc_items"] = self._ejecutar_etapa_oc(
+            # ETAPA 4: Búsqueda OC (Selección Determinística)
+            oc_result = self._ejecutar_etapa_oc(
                 resultado["datos_factura"],
                 resultado["proveedor_info"]
             )
+            resultado["oc_data"] = oc_result
+            resultado["oc_items"] = oc_result.get("oc_items", [])
+            resultado["needs_migo"] = oc_result.get("needs_migo", False)
             self._check_exit(4)
 
-            # ETAPA 5: Verificación entrada material (MIGO)
-            resultado["migo_info"] = self._ejecutar_etapa_migo(
+            # ETAPA 5: Verificación entrada material (MIGO) - OBLIGATORIA
+            # Siempre verificamos que exista MIGO, needs_migo solo define si se incluye en JSON
+            resultado["migo_result"] = self._ejecutar_etapa_migo(
                 resultado["datos_factura"],
-                resultado["oc_items"]
+                oc_result
             )
             self._check_exit(5)
+
+            # Solo usar reference_document si needs_migo es True
+            reference_document = None
+            if resultado["needs_migo"]:
+                reference_document = resultado["migo_result"].get("reference_document")
 
             # ETAPA 6: Construcción JSON
             resultado["factura_json"] = self._ejecutar_etapa_json(
                 resultado["datos_factura"],
                 resultado["proveedor_info"],
-                resultado["oc_items"]
+                resultado["oc_items"],
+                needs_migo=resultado["needs_migo"],
+                reference_document=reference_document
             )
             self._check_exit(6)
 
@@ -440,38 +451,33 @@ class FlujoVerificado:
         try:
             supplier_code = proveedor_info.get('Supplier', '')
             tax_code = datos_factura.get('TaxCode', 'V0')
-            monto = datos_factura.get('InvoiceGrossAmount', 0.0)
-
-            # Extraer descripción de items
-            items = datos_factura.get('Items') or datos_factura.get('items') or []
-            if isinstance(items, dict):
-                items = [items]
-
-            descripcion_parts = []
-            if isinstance(items, list):
-                for it in items:
-                    if isinstance(it, dict):
-                        for k in ('Description', 'Descripcion', 'ItemDescription', 'description'):
-                            v = it.get(k)
-                            if v:
-                                descripcion_parts.append(str(v).strip())
-                                break
-
-            descripcion_producto = "; ".join(descripcion_parts) if descripcion_parts else ""
 
             print(f"  Proveedor SAP: {supplier_code}")
-            print(f"  Descripción: {descripcion_producto[:80]}...")
-            print(f"  Monto: {monto}")
+            print(f"  Monto: {datos_factura.get('InvoiceGrossAmount', 0.0)}")
 
-            resultado = obtener_ordenes_compra(supplier_code, descripcion_producto, monto, tax_code)
+            # Nueva llamada con selección determinística
+            resultado = obtener_ordenes_compra(supplier_code, datos_factura, tax_code)
 
-            if resultado.get("status") == "not_found":
+            if resultado.get("status") == "duplicate_requires_intervention":
+                candidatos = resultado.get('candidatos', [])
+                msg = "Múltiples OCs con score similar:\n"
+                for i, cand in enumerate(candidatos[:3]):
+                    msg += f"  {i+1}. OC {cand.get('selected_purchase_order')} - Score: {cand.get('match_score', 0):.1f}\n"
+                raise StageFailure(msg)
+            elif resultado.get("status") == "not_found":
                 raise StageFailure(f"OCs no encontradas: {resultado.get('error')}")
             elif resultado.get("status") == "error":
                 raise StageFailure(f"Error en búsqueda OC: {resultado.get('error')}")
 
-            oc_items = resultado["data"]
-            print(f"  OCs encontradas: {len(oc_items)}")
+            # Extraer datos de la selección determinística
+            oc_data = resultado["data"]
+            oc_items = oc_data.get('oc_items', [])
+            needs_migo = oc_data.get('needs_migo', False)
+            match_score = oc_data.get('match_score', 0)
+            print(f"  OC Seleccionada: {oc_data.get('selected_purchase_order')}")
+            print(f"  Item: {oc_data.get('selected_purchase_order_item')}")
+            print(f"  Score: {match_score:.1f}/100")
+            print(f"  Requiere MIGO: {'Sí' if needs_migo else 'No'}")
             for oc in oc_items:
                 print(f"    - OC: {oc.get('PurchaseOrder')} Item: {oc.get('PurchaseOrderItem')}")
 
@@ -489,14 +495,27 @@ class FlujoVerificado:
                 duracion_ms=int((datetime.now() - timestamp_inicio).total_seconds() * 1000),
                 status=StageStatus.SUCCESS,
                 verificacion=verificacion,
-                data={"oc_items": oc_items}
+                data={
+                    "oc_items": oc_items,
+                    "needs_migo": needs_migo,
+                    "match_score": match_score,
+                    "selected_purchase_order": oc_data.get('selected_purchase_order'),
+                    "selected_purchase_order_item": oc_data.get('selected_purchase_order_item')
+                }
             )
             self.execution_logger.add_stage_result(stage_result)
 
             if verificacion.resultado == VerificationResult.FAIL and self.exit_on_failure:
                 raise StageFailure(f"Verificación OC fallida: {verificacion.mensaje}")
 
-            return oc_items
+            # Retornar dict con toda la info necesaria
+            return {
+                "oc_items": oc_items,
+                "needs_migo": needs_migo,
+                "match_score": match_score,
+                "selected_purchase_order": oc_data.get('selected_purchase_order'),
+                "selected_purchase_order_item": oc_data.get('selected_purchase_order_item')
+            }
 
         except StageFailure:
             raise
@@ -504,27 +523,48 @@ class FlujoVerificado:
             self._registrar_etapa_error(etapa_num, nombre, descripcion, timestamp_inicio, str(e))
             raise StageFailure(f"Error en búsqueda OC: {e}")
 
-    def _ejecutar_etapa_migo(self, datos_factura: dict, oc_items: list) -> dict:
-        """Ejecuta la etapa de verificación de entrada de material (MIGO)."""
+    def _ejecutar_etapa_migo(self, datos_factura: dict, oc_data: dict) -> dict:
+        """
+        Ejecuta la etapa de verificación de entrada de material (MIGO).
+
+        OBLIGATORIA: Si no hay MIGO válido, el proceso se detiene.
+        No se puede facturar un producto que no ha llegado a almacén.
+        """
         etapa_num = 5
         nombre, descripcion = self.ETAPAS[etapa_num]
         timestamp_inicio = datetime.now()
 
         print(f"\n{'='*70}")
-        print(f"ETAPA {etapa_num}: {descripcion.upper()}")
+        print(f"ETAPA {etapa_num}: {descripcion.upper()} - OBLIGATORIA")
         print(f"{'='*70}")
 
         try:
-            if not oc_items:
-                raise StageFailure("No hay OCs disponibles para verificar MIGO")
+            # Extraer datos de la OC seleccionada
+            purchase_order = oc_data.get('selected_purchase_order', '')
+            purchase_order_item = oc_data.get('selected_purchase_order_item', '')
+            oc_items = oc_data.get('oc_items', [])
 
-            # Obtener número de OC del primer item
-            oc_info = oc_items[0]
-            purchase_order = oc_info.get('PurchaseOrder', '')
-            purchase_order_item = oc_info.get('PurchaseOrderItem', '')
+            if not purchase_order:
+                raise StageFailure("No hay OC seleccionada para verificar MIGO")
+
+            # Preparar oc_info con material
+            oc_info = {}
+            if oc_items:
+                oc_info = {
+                    "PurchaseOrder": purchase_order,
+                    "PurchaseOrderItem": purchase_order_item,
+                    "Material": oc_items[0].get("Material", "")
+                }
+            else:
+                oc_info = {
+                    "PurchaseOrder": purchase_order,
+                    "PurchaseOrderItem": purchase_order_item
+                }
 
             print(f"  Verificando MIGO para OC: {purchase_order}")
             print(f"  Item OC: {purchase_order_item}")
+            if oc_info.get("Material"):
+                print(f"  Material: {oc_info.get('Material')}")
 
             resultado = verificar_entrada_material(
                 purchase_order,
@@ -533,35 +573,48 @@ class FlujoVerificado:
                 oc_info
             )
 
+            # MIGO es OBLIGATORIO - si no se encuentra, detener el proceso
             if resultado.get("status") == "not_found":
-                print(f"  ⚠️  No se encontraron entradas de material para OC {purchase_order}")
-                # No es error fatal, continuamos pero registramos warning
-                migo_info = {
-                    "status": "not_found",
-                    "purchase_order": purchase_order,
-                    "message": "No se encontraron entradas de material"
-                }
-            elif resultado.get("status") == "error":
-                raise StageFailure(f"Error en verificación MIGO: {resultado.get('error')}")
-            else:
-                migo_data = resultado["data"]
-                migo_info = {
-                    "status": "success",
-                    "purchase_order": purchase_order,
-                    "total_entradas": migo_data.get("total_entradas", 0),
-                    "entrada_seleccionada": migo_data.get("entrada_seleccionada", {})
-                }
+                error_msg = f"No se encontraron entradas de material (MIGO) para OC {purchase_order}"
+                print(f"  ❌ {error_msg}")
+                print(f"  ⛔ No se puede facturar un producto que no ha llegado a almacén.")
+                self._registrar_etapa_error(etapa_num, nombre, descripcion, timestamp_inicio, error_msg)
+                raise StageFailure(error_msg)
 
-                print(f"  Entradas encontradas: {migo_info['total_entradas']}")
-                entrada = migo_info.get("entrada_seleccionada", {})
-                if entrada:
-                    print(f"  Entrada seleccionada:")
-                    print(f"    - Documento: {entrada.get('ReferenceDocument', 'N/A')}")
-                    print(f"    - Año: {entrada.get('ReferenceDocumentFiscalYear', 'N/A')}")
-                    print(f"    - Item: {entrada.get('ReferenceDocumentItem', 'N/A')}")
+            if resultado.get("status") == "error":
+                error_msg = resultado.get('error', 'Error desconocido en verificación MIGO')
+                print(f"  ❌ Error en verificación: {error_msg}")
+                raise StageFailure(f"Error en verificación MIGO: {error_msg}")
 
-            # Registrar etapa (sin verificación específica por ahora)
-            # Nota: MIGO no encontrado no es error bloqueante, se registra como SUCCESS
+            # MIGO encontrado exitosamente
+            migo_data = resultado["data"]
+            reference_document = migo_data.get("reference_document", {})
+            match_score = migo_data.get("match_score", 0)
+            cantidad_disponible = migo_data.get("cantidad_disponible", 0)
+            cantidad_factura = migo_data.get("cantidad_factura", 0)
+            estado_cantidad = migo_data.get("estado_cantidad", "")
+
+            print(f"\n  ✅ MIGO VERIFICADO CORRECTAMENTE")
+            print(f"     • Score: {match_score:.1f}/100")
+            print(f"     • Cantidad disponible: {cantidad_disponible}")
+            print(f"     • Cantidad factura: {cantidad_factura}")
+            print(f"     • Estado: {estado_cantidad}")
+            print(f"     • ReferenceDocument: {reference_document.get('ReferenceDocument', 'N/A')}")
+            print(f"     • Año fiscal: {reference_document.get('ReferenceDocumentFiscalYear', 'N/A')}")
+            print(f"     • Item: {reference_document.get('ReferenceDocumentItem', 'N/A')}")
+
+            # Preparar resultado para el flujo
+            migo_result = {
+                "status": "success",
+                "purchase_order": purchase_order,
+                "reference_document": reference_document,
+                "match_score": match_score,
+                "cantidad_disponible": cantidad_disponible,
+                "cantidad_factura": cantidad_factura,
+                "estado_cantidad": estado_cantidad
+            }
+
+            # Registrar etapa exitosa
             stage_result = StageResult(
                 etapa=etapa_num,
                 nombre=nombre,
@@ -570,11 +623,11 @@ class FlujoVerificado:
                 timestamp_fin=datetime.now(),
                 duracion_ms=int((datetime.now() - timestamp_inicio).total_seconds() * 1000),
                 status=StageStatus.SUCCESS,
-                data={"migo_info": migo_info}
+                data={"migo_result": migo_result}
             )
             self.execution_logger.add_stage_result(stage_result)
 
-            return migo_info
+            return migo_result
 
         except StageFailure:
             raise
@@ -586,7 +639,9 @@ class FlujoVerificado:
         self,
         datos_factura: dict,
         proveedor_info: dict,
-        oc_items: list
+        oc_items: list,
+        needs_migo: bool = False,
+        reference_document: dict = None
     ) -> dict:
         """Ejecuta la etapa de construcción de JSON."""
         etapa_num = 6
@@ -598,7 +653,13 @@ class FlujoVerificado:
         print(f"{'='*70}")
 
         try:
-            resultado = construir_json_factura(datos_factura, proveedor_info, oc_items)
+            resultado = construir_json_factura(
+                datos_factura,
+                proveedor_info,
+                oc_items,
+                needs_migo=needs_migo,
+                reference_document=reference_document
+            )
 
             if resultado.get("status") != "success":
                 raise StageFailure(f"Error construyendo JSON: {resultado.get('error')}")
@@ -793,6 +854,7 @@ Ejemplos:
     print("=" * 70)
     if resultado.get("success"):
         print("  Resultado: EXITO")
+        print("  Número de factura:", resultado.get("d", {}).get("SupplierInvoice", "N/A"))
     else:
         print(f"  Resultado: ERROR - {resultado.get('error', 'Desconocido')}")
     print(f"  Log: {resultado.get('log_path', 'N/A')}")

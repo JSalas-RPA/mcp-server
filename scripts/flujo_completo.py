@@ -147,41 +147,77 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     proveedor_info = resultado['data']
 
     # =========================================================================
-    # PASO 4: Obtener órdenes de compra
+    # PASO 4: Obtener órdenes de compra (Selección Determinística)
     # =========================================================================
     print_header(4, "BÚSQUEDA DE ÓRDENES DE COMPRA")
 
     supplier_code = proveedor_info.get('Supplier', '')
     tax_code = datos_factura.get('TaxCode', 'V0')
-    monto = datos_factura.get('InvoiceGrossAmount', 0.0)
-
-    # Extraer descripción de los items
-    items = datos_factura.get('Items') or datos_factura.get('items') or []
-    if isinstance(items, dict):
-        items = [items]
-
-    descripcion_parts = []
-    if isinstance(items, list):
-        for it in items:
-            if isinstance(it, dict):
-                for k in ('Description', 'Descripcion', 'ItemDescription', 'description'):
-                    v = it.get(k)
-                    if v:
-                        descripcion_parts.append(str(v).strip())
-                        break
-
-    descripcion = "; ".join(descripcion_parts) if descripcion_parts else datos_factura.get('Description', '')
 
     print(f"Proveedor SAP: {supplier_code}")
-    print(f"Descripción: {descripcion[:100]}...")
-    print(f"Monto: {monto}")
+    print(f"Monto factura: {datos_factura.get('InvoiceGrossAmount', 0.0)}")
 
-    resultado = obtener_ordenes_compra(supplier_code, descripcion, monto, tax_code)
+    # Nueva llamada con datos completos de factura para scoring
+    resultado = obtener_ordenes_compra(supplier_code, datos_factura, tax_code)
+
+    if resultado.get('status') == 'duplicate_requires_intervention':
+        print("⚠️  Múltiples OCs con score similar, requiere intervención manual:")
+        for i, cand in enumerate(resultado.get('candidatos', [])[:3]):
+            print(f"   {i+1}. OC {cand.get('selected_purchase_order')} - Score: {cand.get('match_score', 0):.1f}")
+        return False
+
     if not print_result(resultado):
         print("❌ No se encontraron OCs para este proveedor. Abortando flujo.")
         return False
 
-    oc_items = resultado['data']
+    # Extraer datos de la selección
+    oc_data = resultado['data']
+    oc_items = oc_data.get('oc_items', [])
+    needs_migo = oc_data.get('needs_migo', False)
+    match_score = oc_data.get('match_score', 0)
+    selected_oc = oc_data.get('selected_purchase_order', '')
+    selected_oc_item = oc_data.get('selected_purchase_order_item', '')
+
+    # Obtener material de la OC
+    material_oc = ""
+    if oc_items:
+        material_oc = oc_items[0].get("Material", "")
+
+    print(f"\n📊 OC Seleccionada: {selected_oc}")
+    print(f"   Score: {match_score:.1f}/100")
+    print(f"   Incluir ReferenceDocument: {'Sí' if needs_migo else 'No'}")
+
+    # =========================================================================
+    # PASO 4.5: VERIFICACIÓN OBLIGATORIA DE ENTRADA DE MATERIAL (MIGO)
+    # =========================================================================
+    print_header("4.5", "VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO) - OBLIGATORIA")
+    from services.sap_operations import verificar_entradas_material
+
+    oc_info_para_migo = {
+        "PurchaseOrder": selected_oc,
+        "PurchaseOrderItem": selected_oc_item,
+        "Material": material_oc
+    }
+
+    resultado_migo = verificar_entradas_material(datos_factura, oc_info_para_migo)
+
+    if resultado_migo.get("status") != "success":
+        error_msg = resultado_migo.get("error", "No se encontró entrada de material")
+        print(f"❌ {error_msg}")
+        print("   No se puede facturar un producto que no ha llegado a almacén.")
+        return False
+
+    print(f"✅ MIGO verificado correctamente")
+    print(f"   Cantidad disponible: {resultado_migo.get('cantidad_disponible', 'N/A')}")
+    print(f"   Score MIGO: {resultado_migo.get('match_score', 0):.1f}/100")
+
+    # Solo usar reference_document si needs_migo es True
+    reference_document = None
+    if needs_migo:
+        reference_document = resultado_migo.get("reference_document")
+        print(f"   ReferenceDocument: {reference_document.get('ReferenceDocument')} (se incluirá en JSON)")
+    else:
+        print(f"   ReferenceDocument: No se incluirá en JSON")
 
     # =========================================================================
     # PASO 5: Construir JSON para SAP
@@ -189,7 +225,13 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     print_header(5, "CONSTRUCCIÓN DE JSON PARA SAP")
     print("Construyendo payload para SAP...")
 
-    resultado = construir_json_factura(datos_factura, proveedor_info, oc_items)
+    resultado = construir_json_factura(
+        datos_factura,
+        proveedor_info,
+        oc_items,
+        needs_migo=needs_migo,
+        reference_document=reference_document
+    )
     if not print_result(resultado, show_data=False):
         print("❌ No se pudo construir el JSON. Abortando flujo.")
         return False

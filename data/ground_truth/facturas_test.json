@@ -245,6 +245,246 @@
         "CompanyCode": "1000",
         "DocumentCurrency": "BOB"
       }
+    },
+     "factura27.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Laínez",
+        "SupplierTaxNumber": "270120262",
+        "SupplierInvoiceIDByInvcgParty": "2701202601",
+        "DocumentDate": "2026-01-27T00:00:00",
+        "InvoiceGrossAmount": 622.91,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000192",
+        "SupplierName": "Laboratorios Lainez",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000112",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+     "teramed-28-01.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Teramed",
+        "SupplierTaxNumber": "270120261",
+        "SupplierInvoiceIDByInvcgParty": "2801202602",
+        "DocumentDate": "2026-01-28T00:00:00",
+        "InvoiceGrossAmount": 2000.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000191",
+        "SupplierName": "Laboratorios Teramed",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000115",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+     "teramed-28-01-2.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Teramed",
+        "SupplierTaxNumber": "270120261",
+        "SupplierInvoiceIDByInvcgParty": "2801202603",
+        "DocumentDate": "2026-01-28T00:00:00",
+        "InvoiceGrossAmount": 825.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000191",
+        "SupplierName": "Laboratorios Teramed",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "4500000116",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+    "teramed-28-01-3.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Teramed",
+        "SupplierTaxNumber": "270120261",
+        "SupplierInvoiceIDByInvcgParty": "2801202604",
+        "DocumentDate": "2026-01-28T00:00:00",
+        "InvoiceGrossAmount": 1250.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000191",
+        "SupplierName": "Laboratorios Teramed",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+    "teramed-28-01-4.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Teramed",
+        "SupplierTaxNumber": "270120261",
+        "SupplierInvoiceIDByInvcgParty": "2801202605",
+        "DocumentDate": "2026-01-28T00:00:00",
+        "InvoiceGrossAmount": 1750.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000191",
+        "SupplierName": "Laboratorios Teramed",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
+    },
+    "teramed-28-01-5.pdf": {
+      "ocr_esperado": {
+        "keywords_requeridos": ["FACTURA", "NIT", "Total"],
+        "texto_minimo_caracteres": 200,
+        "patron_nit": "\\d{7,10}",
+        "patron_monto": "\\d+[,.]?\\d*"
+      },
+      "parsing_esperado": {
+        "SupplierName": "Laboratorios Teramed",
+        "SupplierTaxNumber": "270120261",
+        "SupplierInvoiceIDByInvcgParty": "2801202606",
+        "DocumentDate": "2026-01-28T00:00:00",
+        "InvoiceGrossAmount": 2500.0,
+        "TaxCode": "V0",
+        "campos_requeridos": ["SupplierName", "SupplierTaxNumber", "InvoiceGrossAmount", "DocumentDate"]
+      },
+      "proveedor_esperado": {
+        "Supplier": "1000191",
+        "SupplierName": "Laboratorios Teramed",
+        "similitud_minima": 0.9
+      },
+      "oc_esperado": {
+        "debe_encontrar_oc": true,
+        "PurchaseOrder": "",
+        "campos_requeridos": ["PurchaseOrder", "PurchaseOrderItem", "TaxCode"]
+      },
+      "json_sap_esperado": {
+        "campos_requeridos": [
+          "CompanyCode",
+          "DocumentDate",
+          "SupplierInvoiceIDByInvcgParty",
+          "InvoicingParty",
+          "InvoiceGrossAmount",
+          "DocumentCurrency",
+          "to_SuplrInvcItemPurOrdRef"
+        ],
+        "CompanyCode": "1000",
+        "DocumentCurrency": "BOB"
+      }
     }
   }
 }
