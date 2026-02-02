@@ -133,15 +133,12 @@ def validar_proveedor(factura_datos: dict) -> dict:
             "error": "No se pudieron obtener proveedores de SAP"
         }
     resultado = buscar_proveedor_en_sap(factura_datos, proveedores_sap=proveedores_sap)
-    logger.info(f"Resultado: {resultado.get('status')}")
+    logger.info(f"Resultado: {resultado.get('supplier')}")
     return resultado
 
 
 @mcp.tool()
-def buscar_ordenes_compra(
-    supplier_code: str,
-    factura_datos: dict = None,
-) -> dict:
+def buscar_ordenes_compra(factura_datos, supplier_code) -> dict:
     """
     Obtiene órdenes de compra de un proveedor en SAP.
 
@@ -154,7 +151,7 @@ def buscar_ordenes_compra(
         dict con status (success/not_found/duplicate_requires_intervention/error), data (OC seleccionada) o error
     """
     logger.info(f"Tool 'buscar_ordenes_compra' llamada con supplier_code={supplier_code}")
-    resultado = obtener_ordenes_compra_proveedor(supplier_code, factura_datos)
+    resultado = obtener_ordenes_compra_proveedor(factura_datos, supplier_code)
     logger.info(f"Resultado: {resultado.get('status')}")
     return resultado
 
@@ -207,7 +204,7 @@ def construir_json(
     """
     logger.info(f"Tool 'construir_json' llamada")
     resultado = construir_json_factura_sap(factura_datos, proveedor_info, oc_items, needs_migo, reference_document)
-    logger.info(f"Resultado: {resultado.get('status')}")
+    logger.info(f"Resultado: {resultado.get('SupplierInvoiceStatus')}")
     return resultado
 
 
