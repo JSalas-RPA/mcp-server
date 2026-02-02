@@ -14,15 +14,16 @@ password = os.getenv("SMTP_PASSWORD")
 sender = os.getenv("EMAIL_FROM")
 recipient = os.getenv("ADMIN_EMAIL")
 
-def send_email(error):
+def send_email(destinatario: str, subject: str, body: str) -> bool:
         try:
             print("Enviando email de notificación de error...")
+            print(f"Destinatario: {destinatario}, Asunto: {subject}")
             msg = MIMEMultipart()
             msg['From'] = sender
-            msg['To'] = recipient
-            msg['Subject'] = "Notificación de Error en el Sistema"
+            msg['To'] = recipient # Aquí se puede cambiar a 'destinatario' si se desea enviar al destinatario específico
+            msg['Subject'] = subject
 
-            msg.attach(MIMEText(error, 'plain'))
+            msg.attach(MIMEText(body, 'plain'))
 
             with smtplib.SMTP(smtp_server, port) as server:
                 server.starttls()

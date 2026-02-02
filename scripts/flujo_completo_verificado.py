@@ -235,7 +235,7 @@ class FlujoVerificado:
             logger.error(f"Fallo en etapa: {e}")
             resultado["error"] = str(e)
             try:
-                notificar_error_admin(error=str(e))
+                notificar_error_admin(destinatario="Admin", asunto="Error en flujo de verificación", cuerpo=str(e))
             except Exception:
                 print("Error al enviar notificación de error por correo.")
                 pass

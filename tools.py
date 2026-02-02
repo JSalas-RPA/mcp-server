@@ -435,13 +435,14 @@ def enviar_factura_sap(factura_json: dict) -> dict:
 # ============================================================================
 # Tools para enviar correos de notificación en caso de errores críticos
 # ============================================================================
-def notificar_error_admin(error: str) -> dict:
+def notificar_error_admin(destinatario: str, asunto: str, cuerpo: str) -> dict:
     """
     [ACTIVA] Envía un correo de notificación al administrador.
 
     Args:
-        subject: Asunto del correo
-        body: Cuerpo del correo
+        destinatario: Dirección de correo del destinatario
+        asunto: Asunto del correo
+        cuerpo: Cuerpo del correo
 
     Returns:
         dict con keys:
@@ -452,7 +453,7 @@ def notificar_error_admin(error: str) -> dict:
     try:
         logger.info("Enviando correo...")
 
-        respuesta = send_email(error)
+        respuesta = send_email(destinatario, asunto, cuerpo)
 
         if respuesta:
             return {
