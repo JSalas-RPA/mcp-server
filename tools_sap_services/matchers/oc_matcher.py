@@ -643,18 +643,53 @@ def obtener_ordenes_compra_proveedor(
         print(f"     Factura Parcial: {'Si' if ganador['es_factura_parcial'] else 'No'}")
 
         # Preparar respuesta con formato compatible
-        item_oc = ganador["item_oc_data"]
-        oc_items = [{
-            "PurchaseOrder": ganador["selected_purchase_order"],
-            "PurchaseOrderItem": ganador["selected_purchase_order_item"],
-            "DocumentCurrency": "BOB",
-            "QuantityInPurchaseOrderUnit": str(factura_datos.get("Items", [{}])[0].get("Quantity", 1)),
-            "PurchaseOrderQuantityUnit": item_oc.get("PurchaseOrderQuantityUnit", "EA"),
-            "SupplierInvoiceItemAmount": str(monto_factura),
-            "TaxCode": item_oc.get("TaxCode", ""),
-            "Material": item_oc.get("Material", ""),
-            "NetPriceAmount": item_oc.get("NetPriceAmount", ""),
-        }]
+        items_factura = factura_datos.get("Items", [])
+
+        # Verificar si es matching 1-a-1 (tiene all_items_oc_data)
+        if ganador.get("all_items_oc_data") and len(ganador["all_items_oc_data"]) > 1:
+            # MATCHING 1-a-1: Crear oc_items para cada item emparejado
+            print(f"\n     MODO MULTI-ITEM: {len(ganador['all_items_oc_data'])} items")
+            oc_items = []
+            items_mapping = ganador.get("items_mapping", [])
+
+            for idx, item_oc in enumerate(ganador["all_items_oc_data"]):
+                # Buscar el item de factura correspondiente en el mapping
+                mapping = items_mapping[idx] if idx < len(items_mapping) else {}
+                ocr_position = mapping.get("ocr_position", idx + 1) - 1
+
+                # Obtener datos del item de factura correspondiente
+                item_factura = items_factura[ocr_position] if ocr_position < len(items_factura) else {}
+                cantidad = item_factura.get("Quantity", 1)
+                subtotal = item_factura.get("Subtotal", 0) or (item_factura.get("Quantity", 1) * item_factura.get("UnitPrice", 0))
+
+                oc_item = {
+                    "PurchaseOrder": ganador["selected_purchase_order"],
+                    "PurchaseOrderItem": item_oc.get("PurchaseOrderItem", ""),
+                    "DocumentCurrency": "BOB",
+                    "QuantityInPurchaseOrderUnit": str(cantidad),
+                    "PurchaseOrderQuantityUnit": item_oc.get("PurchaseOrderQuantityUnit", "EA"),
+                    "SupplierInvoiceItemAmount": str(subtotal),
+                    "TaxCode": item_oc.get("TaxCode", ""),
+                    "Material": item_oc.get("Material", ""),
+                    "NetPriceAmount": item_oc.get("NetPriceAmount", ""),
+                }
+                oc_items.append(oc_item)
+                print(f"        Item {idx+1}: OC Item {item_oc.get('PurchaseOrderItem')}, "
+                      f"Cantidad={cantidad}, Monto={subtotal}")
+        else:
+            # MODO SINGLE: Solo 1 item (comportamiento original)
+            item_oc = ganador["item_oc_data"]
+            oc_items = [{
+                "PurchaseOrder": ganador["selected_purchase_order"],
+                "PurchaseOrderItem": ganador["selected_purchase_order_item"],
+                "DocumentCurrency": "BOB",
+                "QuantityInPurchaseOrderUnit": str(items_factura[0].get("Quantity", 1) if items_factura else 1),
+                "PurchaseOrderQuantityUnit": item_oc.get("PurchaseOrderQuantityUnit", "EA"),
+                "SupplierInvoiceItemAmount": str(monto_factura),
+                "TaxCode": item_oc.get("TaxCode", ""),
+                "Material": item_oc.get("Material", ""),
+                "NetPriceAmount": item_oc.get("NetPriceAmount", ""),
+            }]
 
         return {
             "status": "success",
@@ -664,7 +699,8 @@ def obtener_ordenes_compra_proveedor(
             "match_score": ganador["match_score"],
             "es_factura_parcial": ganador["es_factura_parcial"],
             "items_mapping": ganador["items_mapping"],
-            "oc_items": oc_items  # Para compatibilidad
+            "oc_items": oc_items,  # Ahora puede tener múltiples items
+            "all_items_oc_data": ganador.get("all_items_oc_data", [ganador["item_oc_data"]])  # Lista completa de items OC
         }
 
     except Exception as e:

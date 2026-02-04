@@ -21,6 +21,7 @@ from tools_sap_services.matchers.migo_matcher import (
     verificar_match_header_text,
     evaluar_migos_nivel2,
     verificar_entradas_material,
+    verificar_entradas_material_multi,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "verificar_match_header_text",
     "evaluar_migos_nivel2",
     "verificar_entradas_material",
+    "verificar_entradas_material_multi",
 ]

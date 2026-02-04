@@ -1,98 +1,82 @@
 from tools_sap_services.sap_api import enviar_factura_a_sap
 
 factura_json = {
-          "CompanyCode": "1000",
-          "DocumentDate": "2026-01-28T00:00:00",
-          "PostingDate": "2026-01-29T00:00:00",
-          "SupplierInvoiceIDByInvcgParty": "2801202604",
-          "InvoicingParty": "1000191",
-          "AssignmentReference": "2801202606DA31",
-          "DocumentCurrency": "BOB",
-          "InvoiceGrossAmount": "1250",
-          "DueCalculationBaseDate": "2026-01-28T00:00:00",
-          "TaxIsCalculatedAutomatically":True,
-          "TaxDeterminationDate": "2026-01-28T00:00:00",
-          "SupplierInvoiceStatus": "5",
-          "to_SuplrInvcItemPurOrdRef": {
-            "results": [
-              {
-                "SupplierInvoiceItem": "00001",
-                "PurchaseOrder": "4500000115",
-                "PurchaseOrderItem": "10",
-                "DocumentCurrency": "BOB",
-                "QuantityInPurchaseOrderUnit": "125.0",
-                "PurchaseOrderQuantityUnit": "EA",
-                "SupplierInvoiceItemAmount": "1087.5",
-                "TaxCode": "C1",
-                "ReferenceDocument": "5000000265",
-                "ReferenceDocumentFiscalYear": "2026",
-                "ReferenceDocumentItem": "1"
-              }
-            ]
-          }
-        }
+  "CompanyCode": "1000",
+  "DocumentDate": "2026-02-04T00:00:00",
+  "PostingDate": "2026-02-04T00:00:00",
+  "SupplierInvoiceIDByInvcgParty": "0402202603",
+  "InvoicingParty": "1000191",
+  "AssignmentReference": "0402202603DA31",
+  "DocumentCurrency": "BOB",
+  "InvoiceGrossAmount": "562.51",
+  "DueCalculationBaseDate": "2026-02-04T00:00:00",
+  "TaxIsCalculatedAutomatically": True,
+  "TaxDeterminationDate": "2026-02-04T00:00:00",
+  "SupplierInvoiceStatus": "5",
+  "to_SuplrInvcItemPurOrdRef": {
+    "results": [
+      {
+        "SupplierInvoiceItem": "00001",
+        "PurchaseOrder": "4500000117",
+        "PurchaseOrderItem": "10",
+        "DocumentCurrency": "BOB",
+        "QuantityInPurchaseOrderUnit": "150.0",
+        "PurchaseOrderQuantityUnit": "EA",
+        "SupplierInvoiceItemAmount": "489.37500000000006",
+        "TaxCode": "C1",
+        "ReferenceDocument": "5000000272",
+        "ReferenceDocumentFiscalYear": "2026",
+        "ReferenceDocumentItem": "1"
+      }
+    ]
+  }
+}
+
 factura_json_2 = {
           "CompanyCode": "1000",
-          "DocumentDate": "2026-01-28T00:00:00",
-          "PostingDate": "2026-01-29T00:00:00",
-          "SupplierInvoiceIDByInvcgParty": "2801202605",
-          "InvoicingParty": "1000191",
-          "AssignmentReference": "2801202605DA31",
+          "DocumentDate": "2026-01-27T00:00:00",
+          "PostingDate": "2026-01-31T00:00:00",
+          "SupplierInvoiceIDByInvcgParty": "2701202601",
+          "InvoicingParty": "1000192",
+          "AssignmentReference": "2701202601DA31",
           "DocumentCurrency": "BOB",
-          "InvoiceGrossAmount": "1750",
-          "DueCalculationBaseDate": "2026-01-28T00:00:00",
+          "InvoiceGrossAmount": "622.91",
+          "DueCalculationBaseDate": "2026-01-27T00:00:00",
           "TaxIsCalculatedAutomatically": True,
-          "TaxDeterminationDate": "2026-01-28T00:00:00",
+          "TaxDeterminationDate": "2026-01-27T00:00:00",
           "SupplierInvoiceStatus": "5",
           "to_SuplrInvcItemPurOrdRef": {
             "results": [
               {
                 "SupplierInvoiceItem": "00001",
-                "PurchaseOrder": "4500000115",
+                "PurchaseOrder": "4500000112",
                 "PurchaseOrderItem": "10",
                 "DocumentCurrency": "BOB",
-                "QuantityInPurchaseOrderUnit": "175.0",
+                "QuantityInPurchaseOrderUnit": "55",
                 "PurchaseOrderQuantityUnit": "EA",
-                "SupplierInvoiceItemAmount": "1522.5",
+                "SupplierInvoiceItemAmount": "202.7622",
                 "TaxCode": "C1",
-                "ReferenceDocument": "5000000266",
+                "ReferenceDocument": "5000000260",
                 "ReferenceDocumentFiscalYear": "2026",
                 "ReferenceDocumentItem": "1"
-              }
-            ]
-          }
-        }
-factura_json_3 = {
-          "CompanyCode": "1000",
-          "DocumentDate": "2026-01-28T00:00:00",
-          "PostingDate": "2026-01-26T00:00:00",
-          "SupplierInvoiceIDByInvcgParty": "2801202606",
-          "InvoicingParty": "1000191",
-          "AssignmentReference": "2801202606DA31",
-          "DocumentCurrency": "BOB",
-          "InvoiceGrossAmount": "2500",
-          "DueCalculationBaseDate": "2026-01-28T00:00:00",
-          "TaxIsCalculatedAutomatically": True,
-          "TaxDeterminationDate": "2026-01-28T00:00:00",
-          "SupplierInvoiceStatus": "5",
-          "to_SuplrInvcItemPurOrdRef": {
-            "results": [
+              },
               {
-                "SupplierInvoiceItem": "00001",
-                "PurchaseOrder": "4500000115",
-                "PurchaseOrderItem": "10",
+                "SupplierInvoiceItem": "00002",
+                "PurchaseOrder": "4500000112",
+                "PurchaseOrderItem": "20",
                 "DocumentCurrency": "BOB",
-                "QuantityInPurchaseOrderUnit": "250.0",
-                "PurchaseOrderQuantityUnit": "EA",
-                "SupplierInvoiceItemAmount": "2175.0",
+                "QuantityInPurchaseOrderUnit": "30",
+                "PurchaseOrderQuantityUnit": "ST",
+                "SupplierInvoiceItemAmount": "339.1695",
                 "TaxCode": "C1",
-                "ReferenceDocument": "5000000267",
+                "ReferenceDocument": "5000000260",
                 "ReferenceDocumentFiscalYear": "2026",
-                "ReferenceDocumentItem": "1"
+                "ReferenceDocumentItem": "2"
               }
             ]
           }
         }
+
 def _ejecutar_etapa_envio(factura_json: dict) -> dict:
         """Ejecuta la etapa de envío a SAP."""
 
@@ -121,4 +105,4 @@ def _ejecutar_etapa_envio(factura_json: dict) -> dict:
             
         
 if __name__ == "__main__":
-    _ejecutar_etapa_envio(factura_json_3)
+    _ejecutar_etapa_envio(factura_json)
