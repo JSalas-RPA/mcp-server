@@ -7,7 +7,7 @@
 # - Entradas de Material (MIGO)
 # ============================================
 
-from services.matchers.oc_matcher import (
+from tools_sap_services.matchers.oc_matcher import (
     SCORE_CONFIG,
     filtrar_ocs_nivel1,
     calcular_score_item,
@@ -15,7 +15,7 @@ from services.matchers.oc_matcher import (
     obtener_ordenes_compra_proveedor,
 )
 
-from services.matchers.migo_matcher import (
+from tools_sap_services.matchers.migo_matcher import (
     MIGO_CONFIG,
     normalizar_numero_factura,
     verificar_match_header_text,

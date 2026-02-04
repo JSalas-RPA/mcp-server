@@ -3,7 +3,7 @@
 # Módulo de servicios de lógica de negocio
 # ============================================
 
-from services.sap_operations import (
+from tools_sap_services.sap_operations import (
     obtener_proveedores_sap,
     buscar_proveedor_en_sap,
     validar_proveedor_con_ai,

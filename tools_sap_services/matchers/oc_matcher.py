@@ -17,7 +17,7 @@ from utilities.text_utils import (
     evaluar_monto_total,
 )
 from utilities.llm_client import comparar_descripciones_con_ia
-from services.sap_api import fetch_ordenes_compra
+from tools_sap_services.sap_api import fetch_ordenes_compra
 
 logger = logging.getLogger(__name__)
 
@@ -550,7 +550,6 @@ def evaluar_ocs_nivel2(ocs_filtradas: list, factura_datos: dict) -> list:
 def obtener_ordenes_compra_proveedor(
     factura_datos: dict,
     supplier_code: str,
-    tax_code: str = "V0"
 ) -> dict:
     """
     Obtiene y selecciona la mejor orden de compra para una factura.
@@ -652,7 +651,7 @@ def obtener_ordenes_compra_proveedor(
             "QuantityInPurchaseOrderUnit": str(factura_datos.get("Items", [{}])[0].get("Quantity", 1)),
             "PurchaseOrderQuantityUnit": item_oc.get("PurchaseOrderQuantityUnit", "EA"),
             "SupplierInvoiceItemAmount": str(monto_factura),
-            "TaxCode": tax_code or item_oc.get("TaxCode", "V0"),
+            "TaxCode": item_oc.get("TaxCode", ""),
             "Material": item_oc.get("Material", ""),
             "NetPriceAmount": item_oc.get("NetPriceAmount", ""),
         }]
