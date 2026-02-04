@@ -221,7 +221,7 @@ def enviar_a_sap(factura_json: dict) -> dict:
     """
     logger.info(f"Tool 'enviar_a_sap' llamada")
     resultado = enviar_factura_a_sap(factura_json)
-    logger.info(f"Resultado: {resultado.get('status_code')}")
+    logger.info(f"Resultado: {resultado.get('d', {}).get('SupplierInvoice')}")
     return resultado
 
 @mcp.tool()

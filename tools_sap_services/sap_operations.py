@@ -232,6 +232,8 @@ def construir_json_factura_sap(
     fecha_documento = format_sap_date(factura_datos.get("DocumentDate"))
     fecha_actual = datetime.now().strftime("%Y-%m-%d")
     fecha_actual = format_sap_date(fecha_actual)
+    fecha_posting = format_sap_date(f"{datetime.now().year}-01-31")
+    fecha_posting = fecha_actual if datetime.now().month in [11,12,1] else fecha_posting
     invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
 
     if not invoice_id or invoice_id == "0":
@@ -262,7 +264,7 @@ def construir_json_factura_sap(
     factura_json = {
         "CompanyCode": "1000",
         "DocumentDate": fecha_documento,
-        "PostingDate": fecha_actual,
+        "PostingDate": fecha_posting,
         "SupplierInvoiceIDByInvcgParty": invoice_id,
         "InvoicingParty": proveedor_info.get("Supplier", ""),
         "AssignmentReference": cod_autorizacion,

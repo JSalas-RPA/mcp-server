@@ -6,6 +6,7 @@
 # La lógica de negocio (scoring, filtrado) está en otros módulos.
 # ============================================
 
+import json
 import logging
 import requests
 
@@ -301,6 +302,7 @@ def enviar_factura_a_sap(factura_json: dict) -> dict | None:
             print("  Factura creada exitosamente en SAP")
             logger.info("Factura creada exitosamente en SAP")
             data = safe_json_response(response)
+            #print(f"  Detalles respuesta SAP: {json.dumps(data, indent=2)}") # Descomentar para debug
             return data
         else:
             print(f"  Error al crear factura en SAP: {response.status_code}")
