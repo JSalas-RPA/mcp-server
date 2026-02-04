@@ -26,7 +26,7 @@ from fastmcp import FastMCP
 from utilities.ocr import get_transcript_document_cloud_vision
 from utilities.file_storage import download_pdf_to_tempfile
 from utilities.email_client import send_email
-from services.sap_operations import (
+from tools_sap_services.sap_operations import (
     extraer_datos_factura_desde_texto,
     obtener_proveedores_sap,
     buscar_proveedor_en_sap,
@@ -104,7 +104,7 @@ def parsear_factura(texto_factura: str) -> dict:
     """
     logger.info(f"Tool 'parsear_factura' llamada")
     resultado = extraer_datos_factura_desde_texto(texto_factura)
-    logger.info(f"Resultado: {resultado.get('status')}")
+    logger.info(f"Resultado: {resultado.get('SupplierInvoiceIDByInvcgParty')}")
     return resultado
 
 
@@ -217,15 +217,15 @@ def enviar_a_sap(factura_json: dict) -> dict:
         factura_json: JSON de factura construido
 
     Returns:
-        dict con status, data (respuesta SAP) o error
+        list true/false y mensaje
     """
     logger.info(f"Tool 'enviar_a_sap' llamada")
     resultado = enviar_factura_a_sap(factura_json)
-    logger.info(f"Resultado: {resultado.get('status')}")
+    logger.info(f"Resultado: {resultado.get('status_code')}")
     return resultado
 
 @mcp.tool()
-def enviar_correo(destinatario: str, asunto: str, cuerpo: str) -> dict:
+def enviar_correo(destinatario: str, asunto: str, cuerpo: str) -> list:
     """
     Envía un correo electrónico.
 
@@ -239,7 +239,7 @@ def enviar_correo(destinatario: str, asunto: str, cuerpo: str) -> dict:
     """
     logger.info(f"Tool 'enviar_correo' llamada")
     resultado = send_email(destinatario, asunto, cuerpo)
-    logger.info(f"Resultado: {resultado.get('status')}")
+    logger.info(f"Resultado: {resultado}")
     return resultado
 
 # ============================================================================
@@ -252,7 +252,7 @@ if __name__ == "__main__":
     logger.info("Tools activas: extraer_texto, parsear_factura, validar_proveedor, buscar_ordenes_compra, verificar_migo, construir_json, enviar_a_sap")
     asyncio.run(
         mcp.run_async(
-            transport="streamable-http",
+            transport="sse", #http/sse
             host="0.0.0.0",
             port=port
         )

@@ -38,13 +38,13 @@ from utilities.ocr import get_transcript_document_cloud_vision
 from utilities.file_storage import download_pdf_to_tempfile
 from utilities.email_client import send_email
 from utilities.llm_client import extraer_datos_factura_desde_texto
-from services.sap_operations import (
+from tools_sap_services.sap_operations import (
     obtener_proveedores_sap,
     buscar_proveedor_en_sap,
     construir_json_factura_sap,
 )
-from services.sap_api import enviar_factura_a_sap
-from services.matchers import (
+from tools_sap_services.sap_api import enviar_factura_a_sap
+from tools_sap_services.matchers import (
     obtener_ordenes_compra_proveedor,
     verificar_entradas_material,
 )

@@ -23,11 +23,11 @@ from utilities.date_utils import format_sap_date
 from utilities.llm_client import validar_proveedor_con_ai
 
 # Re-exportar funciones para compatibilidad con imports existentes
-from services.sap_api import (
+from tools_sap_services.sap_api import (
     obtener_proveedores_sap,
     enviar_factura_a_sap,
 )
-from services.matchers import (
+from tools_sap_services.matchers import (
     obtener_ordenes_compra_proveedor,
     verificar_entradas_material,
     SCORE_CONFIG,
@@ -327,7 +327,7 @@ def construir_json_factura_sap(
 def obtener_entradas_material_por_oc(purchase_order, purchase_order_item=None, supplier_code=None):
     """DEPRECADA: Usar verificar_entradas_material() en su lugar."""
     logger.warning("obtener_entradas_material_por_oc esta deprecada, usar verificar_entradas_material")
-    from services.sap_api import fetch_entradas_material
+    from tools_sap_services.sap_api import fetch_entradas_material
     resultado = fetch_entradas_material(purchase_order, purchase_order_item)
     return resultado.get("data", []) if resultado.get("status") == "success" else []
 

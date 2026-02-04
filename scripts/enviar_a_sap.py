@@ -1,4 +1,4 @@
-from tools import enviar_factura_sap
+from tools_sap_services.sap_api import enviar_factura_a_sap
 
 factura_json = {
           "CompanyCode": "1000",
@@ -72,7 +72,7 @@ def _ejecutar_etapa_envio(factura_json: dict) -> dict:
 
         try:
             print("  Enviando factura a SAP...")
-            resultado = enviar_factura_sap(factura_json)
+            resultado = enviar_factura_a_sap(factura_json)
 
             if resultado.get("status") != "success":
                 raise (f"Error enviando a SAP: {resultado.get('error')}")

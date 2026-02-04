@@ -307,6 +307,9 @@ def enviar_factura_a_sap(factura_json: dict) -> dict | None:
             logger.error(f"Error al crear factura en SAP: {response.status_code}")
             print(f"  Detalles: {response.text[:500]}")
             logger.error(f"Detalles: {response.text[:500]}")
+            error_info = safe_json_response(response)
+            if error_info:
+                return error_info
             return None
 
     except Exception as e:

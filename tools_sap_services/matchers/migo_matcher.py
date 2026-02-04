@@ -10,7 +10,7 @@
 import logging
 from datetime import datetime as dt
 
-from services.sap_api import fetch_entradas_material, fetch_header_material
+from tools_sap_services.sap_api import fetch_entradas_material, fetch_header_material
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,7 @@ from utilities.text_utils import (
     evaluar_monto_total,
 )
 from utilities.llm_client import comparar_descripciones_con_ia
-from services.sap_api import fetch_ordenes_compra
+from tools_sap_services.sap_api import fetch_ordenes_compra
 
 logger = logging.getLogger(__name__)
 
