@@ -11,9 +11,10 @@
 #   2. Parsear datos estructurados con OpenAI
 #   3. Validar proveedor en SAP
 #   4. Buscar órdenes de compra
-#   4.5. Verificar entrada de material (MIGO)
-#   5. Construir JSON para SAP
-#   6. Enviar a SAP (opcional)
+#   5. Verificar entrada de material (MIGO)
+#   6. Construir JSON para SAP
+#   7. Enviar a SAP (opcional)
+#   8. Notificar errores automáticamente por correo
 #
 # NOTA: Este script importa directamente de services/ y utilities/,
 #       NO de server.py (las funciones decoradas con @mcp.tool no son callable).
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # IMPORTS DIRECTOS (no desde server.py)
 # ============================================================================
-from utilities.ocr import get_transcript_document_cloud_vision
+from utilities.ocr import get_transcript_document, get_transcript_document_cloud_vision
 from utilities.file_storage import download_pdf_to_tempfile
 from utilities.email_client import send_email
 from utilities.llm_client import extraer_datos_factura_desde_texto
@@ -61,7 +62,7 @@ def extraer_texto(ruta_gcs: str) -> dict:
     try:
         logger.info(f"Extrayendo texto de: {ruta_gcs}")
         ruta_temp = download_pdf_to_tempfile(ruta_gcs)
-        texto = get_transcript_document_cloud_vision(ruta_temp)
+        texto = get_transcript_document(ruta_temp)
         return {"status": "success", "data": texto}
     except Exception as e:
         logger.error(f"Error en extracción: {e}")
@@ -153,8 +154,9 @@ def enviar_a_sap(factura_json: dict) -> dict:
     """Envía factura a SAP."""
     try:
         resultado = enviar_factura_a_sap(factura_json)
-        if resultado:
-            logger.info(f"Resultado: {resultado.get('d', {}).get('SupplierInvoice')}")
+        resultado = resultado.get("d", {})
+        if resultado.get("SupplierInvoiceStatus") == "5":
+            logger.info(f"Número de factura en SAP: {resultado.get('SupplierInvoice')}")
             return {"status": "success", "data": resultado}
         return {"status": "error", "error": "No se pudo enviar a SAP"}
     except Exception as e:
