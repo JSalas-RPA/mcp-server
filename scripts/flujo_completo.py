@@ -44,7 +44,7 @@ from tools_sap_services.sap_operations import (
     buscar_proveedor_en_sap,
     construir_json_factura_sap,
 )
-from tools_sap_services.sap_api import enviar_factura_a_sap
+from tools_sap_services.sap_api import enviar_factura_a_sap, buscar_factura_existente
 from tools_sap_services.matchers import (
     obtener_ordenes_compra_proveedor,
     verificar_entradas_material,
@@ -405,6 +405,40 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     ctx.proveedor_info = resultado['data']
 
     # =========================================================================
+    # PASO 3.5: Verificar factura duplicada (MIRO existente)
+    # =========================================================================
+    print_header("3.5", "VERIFICACIÓN DE FACTURA DUPLICADA")
+
+    invoice_id = ctx.datos_factura.get("SupplierInvoiceIDByInvcgParty", "")
+    supplier_code = ctx.proveedor_info.get("Supplier", "")
+
+    print(f"Verificando si factura '{invoice_id}' ya existe en SAP para proveedor {supplier_code}...")
+
+    resultado_dup = buscar_factura_existente(invoice_id, supplier_code)
+
+    if resultado_dup.get("status") == "exists":
+        miro_data = resultado_dup.get("data", {})
+        print(f"\n❌ FACTURA DUPLICADA DETECTADA")
+        print(f"   La factura '{invoice_id}' ya fue registrada en SAP:")
+        print(f"   MIRO: {miro_data.get('SupplierInvoice', 'N/A')}")
+        print(f"   Año Fiscal: {miro_data.get('FiscalYear', 'N/A')}")
+        print(f"   Monto: {miro_data.get('InvoiceGrossAmount', 'N/A')}")
+        print(f"   Fecha Posting: {miro_data.get('PostingDate', 'N/A')}")
+        print(f"\n   Abortando proceso para evitar duplicado.")
+
+        _notificar_error(
+            paso="Verificación de factura duplicada",
+            error=f"Factura '{invoice_id}' ya existe como MIRO {miro_data.get('SupplierInvoice', 'N/A')}",
+            contexto=ctx
+        )
+        return False
+    elif resultado_dup.get("status") == "error":
+        print(f"⚠️  Error al verificar duplicados: {resultado_dup.get('error')}")
+        print(f"   Continuando con precaución...")
+    else:
+        print(f"✅ No se encontró MIRO existente. Continuando...")
+
+    # =========================================================================
     # PASO 4: Obtener órdenes de compra (Selección Determinística)
     # =========================================================================
     print_header(4, "BÚSQUEDA DE ÓRDENES DE COMPRA")
@@ -451,9 +485,9 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     print(f"   Incluir ReferenceDocument: {'Sí' if needs_migo else 'No'}")
 
     # =========================================================================
-    # PASO 4.5: VERIFICACIÓN OBLIGATORIA DE ENTRADA DE MATERIAL (MIGO)
+    # PASO 5: VERIFICACIÓN OBLIGATORIA DE ENTRADA DE MATERIAL (MIGO)
     # =========================================================================
-    print_header("4.5", "VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO) - OBLIGATORIA")
+    print_header("5", "VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO)")
 
     # Verificar si hay múltiples items
     es_multi_item = len(oc_items) > 1

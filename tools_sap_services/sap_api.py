@@ -246,6 +246,76 @@ def fetch_header_material(material_document: str, material_document_year: str) -
 
 
 # ============================================
+# VERIFICACION DE FACTURA DUPLICADA
+# ============================================
+
+def buscar_factura_existente(invoice_id: str, supplier_code: str) -> dict:
+    """
+    Busca si ya existe un MIRO (Supplier Invoice) en SAP con el mismo
+    numero de factura y proveedor, para evitar duplicados.
+
+    Args:
+        invoice_id: Numero de factura del proveedor (SupplierInvoiceIDByInvcgParty)
+        supplier_code: Codigo del proveedor en SAP (InvoicingParty)
+
+    Returns:
+        dict con estructura:
+        {
+            "status": "exists" | "not_found" | "error",
+            "data": datos del MIRO existente (si aplica),
+            "error": mensaje de error (si aplica)
+        }
+    """
+    if not invoice_id or not supplier_code:
+        return {"status": "error", "error": "Se requiere invoice_id y supplier_code"}
+
+    try:
+        headers = get_sap_headers()
+
+        filtro = (
+            f"SupplierInvoiceIDByInvcgParty eq '{invoice_id}' "
+            f"and InvoicingParty eq '{supplier_code}'"
+        )
+        select = (
+            "SupplierInvoice,FiscalYear,SupplierInvoiceIDByInvcgParty,"
+            "InvoicingParty,InvoiceGrossAmount,PostingDate,DocumentDate"
+        )
+        url = f"{SAP_CONFIG['invoice_post_url']}?$filter={filtro}&$top=1&$select={select}"
+
+        print(f"\n  Verificando factura duplicada en SAP...")
+        print(f"     Factura: {invoice_id} | Proveedor: {supplier_code}")
+
+        response = requests.get(
+            url,
+            headers=headers,
+            auth=get_sap_auth(),
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            logger.error(f"Error {response.status_code} al buscar factura existente")
+            return {"status": "error", "error": f"Error SAP: {response.status_code}"}
+
+        data = safe_json_response(response)
+        if not data or "d" not in data:
+            return {"status": "not_found"}
+
+        resultados = data["d"].get("results", [])
+
+        if resultados:
+            miro = resultados[0]
+            print(f"     MIRO encontrado: {miro.get('SupplierInvoice')} (Año: {miro.get('FiscalYear')})")
+            return {"status": "exists", "data": miro}
+
+        print(f"     No se encontro MIRO existente.")
+        return {"status": "not_found"}
+
+    except Exception as e:
+        logger.error(f"Error en buscar_factura_existente: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+# ============================================
 # ENVIO DE FACTURA
 # ============================================
 

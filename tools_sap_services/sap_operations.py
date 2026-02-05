@@ -30,6 +30,7 @@ from tools_sap_services.sap_api import (
 from tools_sap_services.matchers import (
     obtener_ordenes_compra_proveedor,
     verificar_entradas_material,
+    verificar_entradas_material_multi,
     SCORE_CONFIG,
     MIGO_CONFIG,
 )
@@ -235,8 +236,6 @@ def construir_json_factura_sap(
     fecha_actual = datetime.now().strftime("%Y-%m-%d")
     fecha_actual = format_sap_date(fecha_actual)
     fecha_posting = fecha_actual
-    #fecha_posting = format_sap_date(f"{datetime.now().year}-01-31")
-    #fecha_posting = fecha_actual if datetime.now().month in [11,12,1] else fecha_posting
     invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
 
     if not invoice_id or invoice_id == "0":
@@ -261,7 +260,7 @@ def construir_json_factura_sap(
     print(f"     Codigo Autorizacion: {cod_autorizacion[:50]}...")
     print(f"     Monto: {invoice_amount_str} BOB")
     print(f"     Fecha: {fecha_documento}")
-    print(f"     OCs encontradas: {len(oc_items)}")
+    print(f"     Items encontrados: {len(oc_items)}")
     print(f"     Requiere MIGO: {'Si' if needs_migo else 'No'}")
 
     factura_json = {
