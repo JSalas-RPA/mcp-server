@@ -30,6 +30,7 @@ from tools_sap_services.sap_api import (
 from tools_sap_services.matchers import (
     obtener_ordenes_compra_proveedor,
     verificar_entradas_material,
+    verificar_entradas_material_multi,
     SCORE_CONFIG,
     MIGO_CONFIG,
 )
@@ -202,7 +203,7 @@ def construir_json_factura_sap(
     proveedor_info: dict,
     oc_items: list,
     needs_migo: bool = False,
-    reference_document: dict = None
+    reference_document: dict | list = None
 ) -> dict | None:
     """
     Construye el JSON final en el formato exacto que SAP espera.
@@ -213,11 +214,13 @@ def construir_json_factura_sap(
         oc_items: Lista de items de OC seleccionados
         needs_migo: Si True, se incluyen campos ReferenceDocument (requiere entrada de material)
         reference_document: Datos del documento de referencia (MIGO) si needs_migo=True
+            Puede ser un dict (para un solo item) o una lista de dicts (para múltiples items):
             {
                 "ReferenceDocument": "5000000244",
                 "ReferenceDocumentFiscalYear": "2025",
                 "ReferenceDocumentItem": "1"
             }
+            O lista: [{"ReferenceDocument": ...}, {"ReferenceDocument": ...}, ...]
 
     Returns:
         dict con el JSON para SAP o None si hay error
@@ -232,8 +235,7 @@ def construir_json_factura_sap(
     fecha_documento = format_sap_date(factura_datos.get("DocumentDate"))
     fecha_actual = datetime.now().strftime("%Y-%m-%d")
     fecha_actual = format_sap_date(fecha_actual)
-    fecha_posting = format_sap_date(f"{datetime.now().year}-01-31")
-    fecha_posting = fecha_actual if datetime.now().month in [11,12,1] else fecha_posting
+    fecha_posting = fecha_actual
     invoice_id = factura_datos.get("SupplierInvoiceIDByInvcgParty", "")
 
     if not invoice_id or invoice_id == "0":
@@ -242,7 +244,7 @@ def construir_json_factura_sap(
         invoice_id = f"INV{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
     invoice_amount = factura_datos.get("InvoiceGrossAmount", 0.0)
-    invoice_amount_str = f"{invoice_amount:.0f}"
+    invoice_amount_str = str(invoice_amount)
 
     cod_autorizacion = factura_datos.get("AssignmentReference", "")
     print(f"  Codigo de Autorizacion inicial: {cod_autorizacion}")
@@ -258,7 +260,7 @@ def construir_json_factura_sap(
     print(f"     Codigo Autorizacion: {cod_autorizacion[:50]}...")
     print(f"     Monto: {invoice_amount_str} BOB")
     print(f"     Fecha: {fecha_documento}")
-    print(f"     OCs encontradas: {len(oc_items)}")
+    print(f"     Items encontrados: {len(oc_items)}")
     print(f"     Requiere MIGO: {'Si' if needs_migo else 'No'}")
 
     factura_json = {
@@ -283,6 +285,15 @@ def construir_json_factura_sap(
         logger.error("No se encontraron ordenes de compra para esta factura")
         return None
 
+    # Normalizar reference_document a lista
+    reference_docs_list = []
+    if reference_document:
+        if isinstance(reference_document, list):
+            reference_docs_list = reference_document
+        else:
+            # Un solo documento, replicar para todos los items
+            reference_docs_list = [reference_document] * len(oc_items)
+
     print(f"  AGREGANDO {len(oc_items)} ITEMS DE OC:")
 
     for idx, oc in enumerate(oc_items, start=1):
@@ -305,12 +316,15 @@ def construir_json_factura_sap(
 
         # Solo agregar campos ReferenceDocument si needs_migo es True
         if needs_migo:
-            if reference_document:
-                item["ReferenceDocument"] = reference_document.get("ReferenceDocument", "")
-                item["ReferenceDocumentFiscalYear"] = reference_document.get("ReferenceDocumentFiscalYear", "")
-                item["ReferenceDocumentItem"] = reference_document.get("ReferenceDocumentItem", "1")
+            # Obtener el reference_document correspondiente a este item
+            ref_doc = reference_docs_list[idx - 1] if idx - 1 < len(reference_docs_list) else None
+
+            if ref_doc:
+                item["ReferenceDocument"] = ref_doc.get("ReferenceDocument", "")
+                item["ReferenceDocumentFiscalYear"] = ref_doc.get("ReferenceDocumentFiscalYear", "")
+                item["ReferenceDocumentItem"] = ref_doc.get("ReferenceDocumentItem", "1")
                 print(f"     Item {idx}: OC {oc.get('PurchaseOrder')}, Item {oc.get('PurchaseOrderItem')} "
-                      f"[MIGO: {reference_document.get('ReferenceDocument')}]")
+                      f"[MIGO: {ref_doc.get('ReferenceDocument')}]")
             else:
                 logger.warning(f"needs_migo=True pero no se proporciono reference_document para item {idx}")
                 print(f"     [!] Item {idx}: OC {oc.get('PurchaseOrder')} - FALTA MIGO!")

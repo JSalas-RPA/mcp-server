@@ -11,9 +11,10 @@
 #   2. Parsear datos estructurados con OpenAI
 #   3. Validar proveedor en SAP
 #   4. Buscar órdenes de compra
-#   4.5. Verificar entrada de material (MIGO)
-#   5. Construir JSON para SAP
-#   6. Enviar a SAP (opcional)
+#   5. Verificar entrada de material (MIGO)
+#   6. Construir JSON para SAP
+#   7. Enviar a SAP (opcional)
+#   8. Notificar errores automáticamente por correo
 #
 # NOTA: Este script importa directamente de services/ y utilities/,
 #       NO de server.py (las funciones decoradas con @mcp.tool no son callable).
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # IMPORTS DIRECTOS (no desde server.py)
 # ============================================================================
-from utilities.ocr import get_transcript_document_cloud_vision
+from utilities.ocr import get_transcript_document, get_transcript_document_cloud_vision
 from utilities.file_storage import download_pdf_to_tempfile
 from utilities.email_client import send_email
 from utilities.llm_client import extraer_datos_factura_desde_texto
@@ -43,10 +44,11 @@ from tools_sap_services.sap_operations import (
     buscar_proveedor_en_sap,
     construir_json_factura_sap,
 )
-from tools_sap_services.sap_api import enviar_factura_a_sap
+from tools_sap_services.sap_api import enviar_factura_a_sap, buscar_factura_existente
 from tools_sap_services.matchers import (
     obtener_ordenes_compra_proveedor,
     verificar_entradas_material,
+    verificar_entradas_material_multi,
 )
 
 
@@ -60,7 +62,7 @@ def extraer_texto(ruta_gcs: str) -> dict:
     try:
         logger.info(f"Extrayendo texto de: {ruta_gcs}")
         ruta_temp = download_pdf_to_tempfile(ruta_gcs)
-        texto = get_transcript_document_cloud_vision(ruta_temp)
+        texto = get_transcript_document(ruta_temp)
         return {"status": "success", "data": texto}
     except Exception as e:
         logger.error(f"Error en extracción: {e}")
@@ -109,7 +111,7 @@ def buscar_ordenes_compra(factura_datos: dict, supplier_code: str) -> dict:
 
 
 def verificar_migo(factura_datos: dict, oc_info: dict) -> dict:
-    """Verifica entrada de material (MIGO)."""
+    """Verifica entrada de material (MIGO) para un solo item."""
     try:
         resultado = verificar_entradas_material(factura_datos, oc_info)
         return resultado  # Ya viene con formato {status, data, ...}
@@ -118,14 +120,24 @@ def verificar_migo(factura_datos: dict, oc_info: dict) -> dict:
         return {"status": "error", "error": str(e)}
 
 
+def verificar_migo_multi(factura_datos: dict, oc_items: list) -> dict:
+    """Verifica entrada de material (MIGO) para múltiples items."""
+    try:
+        resultado = verificar_entradas_material_multi(factura_datos, oc_items)
+        return resultado  # Ya viene con formato {status, reference_documents, ...}
+    except Exception as e:
+        logger.error(f"Error verificando MIGO multi-item: {e}")
+        return {"status": "error", "error": str(e)}
+
+
 def construir_json(
     factura_datos: dict,
     proveedor_info: dict,
     oc_items: list,
     needs_migo: bool = False,
-    reference_document: dict = None
+    reference_document: dict | list = None
 ) -> dict:
-    """Construye JSON para SAP."""
+    """Construye JSON para SAP. reference_document puede ser dict o lista de dicts."""
     try:
         resultado = construir_json_factura_sap(
             factura_datos, proveedor_info, oc_items, needs_migo, reference_document
@@ -142,7 +154,9 @@ def enviar_a_sap(factura_json: dict) -> dict:
     """Envía factura a SAP."""
     try:
         resultado = enviar_factura_a_sap(factura_json)
-        if resultado:
+        resultado = resultado.get("d", {})
+        if resultado.get("SupplierInvoiceStatus") == "5":
+            logger.info(f"Número de factura en SAP: {resultado.get('SupplierInvoice')}")
             return {"status": "success", "data": resultado}
         return {"status": "error", "error": "No se pudo enviar a SAP"}
     except Exception as e:
@@ -391,6 +405,40 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     ctx.proveedor_info = resultado['data']
 
     # =========================================================================
+    # PASO 3.5: Verificar factura duplicada (MIRO existente)
+    # =========================================================================
+    print_header("3.5", "VERIFICACIÓN DE FACTURA DUPLICADA")
+
+    invoice_id = ctx.datos_factura.get("SupplierInvoiceIDByInvcgParty", "")
+    supplier_code = ctx.proveedor_info.get("Supplier", "")
+
+    print(f"Verificando si factura '{invoice_id}' ya existe en SAP para proveedor {supplier_code}...")
+
+    resultado_dup = buscar_factura_existente(invoice_id, supplier_code)
+
+    if resultado_dup.get("status") == "exists":
+        miro_data = resultado_dup.get("data", {})
+        print(f"\n❌ FACTURA DUPLICADA DETECTADA")
+        print(f"   La factura '{invoice_id}' ya fue registrada en SAP:")
+        print(f"   MIRO: {miro_data.get('SupplierInvoice', 'N/A')}")
+        print(f"   Año Fiscal: {miro_data.get('FiscalYear', 'N/A')}")
+        print(f"   Monto: {miro_data.get('InvoiceGrossAmount', 'N/A')}")
+        print(f"   Fecha Posting: {miro_data.get('PostingDate', 'N/A')}")
+        print(f"\n   Abortando proceso para evitar duplicado.")
+
+        _notificar_error(
+            paso="Verificación de factura duplicada",
+            error=f"Factura '{invoice_id}' ya existe como MIRO {miro_data.get('SupplierInvoice', 'N/A')}",
+            contexto=ctx
+        )
+        return False
+    elif resultado_dup.get("status") == "error":
+        print(f"⚠️  Error al verificar duplicados: {resultado_dup.get('error')}")
+        print(f"   Continuando con precaución...")
+    else:
+        print(f"✅ No se encontró MIRO existente. Continuando...")
+
+    # =========================================================================
     # PASO 4: Obtener órdenes de compra (Selección Determinística)
     # =========================================================================
     print_header(4, "BÚSQUEDA DE ÓRDENES DE COMPRA")
@@ -437,25 +485,41 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     print(f"   Incluir ReferenceDocument: {'Sí' if needs_migo else 'No'}")
 
     # =========================================================================
-    # PASO 4.5: VERIFICACIÓN OBLIGATORIA DE ENTRADA DE MATERIAL (MIGO)
+    # PASO 5: VERIFICACIÓN OBLIGATORIA DE ENTRADA DE MATERIAL (MIGO)
     # =========================================================================
-    print_header("4.5", "VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO) - OBLIGATORIA")
+    print_header("5", "VERIFICACIÓN DE ENTRADA DE MATERIAL (MIGO)")
 
-    oc_info_para_migo = {
-        "PurchaseOrder": selected_oc,
-        "PurchaseOrderItem": selected_oc_item,
-        "Material": material_oc
-    }
+    # Verificar si hay múltiples items
+    es_multi_item = len(oc_items) > 1
 
-    resultado_migo = ejecutar_paso(
-        "Verificación de entrada de material (MIGO)",
-        verificar_migo,
-        ctx.datos_factura,
-        oc_info_para_migo,
-        contexto=ctx
-    )
+    if es_multi_item:
+        # MODO MULTI-ITEM: Verificar MIGO para cada item de la OC
+        print(f"   Modo multi-item: {len(oc_items)} items a verificar")
 
-    if resultado_migo.get("status") != "success":
+        resultado_migo = ejecutar_paso(
+            "Verificación de entrada de material (MIGO) - Multi-item",
+            verificar_migo_multi,
+            ctx.datos_factura,
+            oc_items,
+            contexto=ctx
+        )
+    else:
+        # MODO SINGLE: Verificación de un solo item (comportamiento original)
+        oc_info_para_migo = {
+            "PurchaseOrder": selected_oc,
+            "PurchaseOrderItem": selected_oc_item,
+            "Material": material_oc
+        }
+
+        resultado_migo = ejecutar_paso(
+            "Verificación de entrada de material (MIGO)",
+            verificar_migo,
+            ctx.datos_factura,
+            oc_info_para_migo,
+            contexto=ctx
+        )
+
+    if resultado_migo.get("status") not in ["success"]:
         error_msg = resultado_migo.get("error", "No se encontró entrada de material")
         print(f"❌ {error_msg}")
         print("   No se puede facturar un producto que no ha llegado a almacén.")
@@ -466,12 +530,24 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
     print(f"   Cantidad disponible: {migo_data.get('cantidad_disponible', 'N/A')}")
     print(f"   Score MIGO: {migo_data.get('match_score', 0):.1f}/100")
 
-    # Solo usar reference_document si needs_migo es True
-    reference_document = None
+    # Obtener reference_document(s) si needs_migo es True
+    reference_documents = None
     if needs_migo:
-        reference_document = migo_data.get("reference_document")
-        if reference_document:
-            print(f"   ReferenceDocument: {reference_document.get('ReferenceDocument')} (se incluirá en JSON)")
+        if es_multi_item:
+            # Multi-item: obtener lista de reference_documents
+            reference_documents = migo_data.get("reference_documents", [])
+            if reference_documents:
+                print(f"   ReferenceDocuments ({len(reference_documents)} items):")
+                for idx, ref_doc in enumerate(reference_documents, 1):
+                    if ref_doc:
+                        print(f"      Item {idx}: {ref_doc.get('ReferenceDocument')} (se incluirá en JSON)")
+                    else:
+                        print(f"      Item {idx}: [FALTA MIGO]")
+        else:
+            # Single: obtener un solo reference_document
+            reference_documents = migo_data.get("reference_document")
+            if reference_documents:
+                print(f"   ReferenceDocument: {reference_documents.get('ReferenceDocument')} (se incluirá en JSON)")
     else:
         print(f"   ReferenceDocument: No se incluirá en JSON")
 
@@ -489,7 +565,7 @@ def ejecutar_flujo_completo(source: str, enviar: bool = False):
         oc_items,
         contexto=ctx,
         needs_migo=needs_migo,
-        reference_document=reference_document
+        reference_document=reference_documents
     )
     if not print_result(resultado, show_data=False):
         print("❌ No se pudo construir el JSON. Abortando flujo.")

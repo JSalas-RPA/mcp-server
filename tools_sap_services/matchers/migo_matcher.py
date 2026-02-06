@@ -204,7 +204,7 @@ def verificar_entradas_material(
     oc_info: dict
 ) -> dict:
     """
-    Verifica las entradas de material (MIGO) para una OC.
+    Verifica las entradas de material (MIGO) para una OC (un solo item).
 
     OBLIGATORIA: Si no hay MIGO válido, no se puede facturar.
 
@@ -332,3 +332,139 @@ def verificar_entradas_material(
         print(f"  [X] Excepcion: {e}")
         logger.error(f"Error en verificar_entradas_material: {e}")
         return {"status": "error", "error": str(e)}
+
+
+def verificar_entradas_material_multi(
+    factura_datos: dict,
+    oc_items: list
+) -> dict:
+    """
+    Verifica las entradas de material (MIGO) para múltiples items de OC.
+
+    Busca un MIGO para cada item de la OC y retorna la lista de reference_documents.
+
+    Args:
+        factura_datos: Datos de la factura
+        oc_items: Lista de items de OC (cada uno con PurchaseOrder, PurchaseOrderItem, Material)
+
+    Returns:
+        dict con estructura:
+        {
+            "status": "success" | "partial" | "no_match" | "error",
+            "reference_documents": [  # Lista de reference_document por cada item
+                {
+                    "ReferenceDocument": str,
+                    "ReferenceDocumentFiscalYear": str,
+                    "ReferenceDocumentItem": str
+                },
+                ...
+            ],
+            "items_verificados": int,
+            "items_ok": int,
+            "match_score": float,  # Promedio de scores
+            "cantidad_disponible": float,  # Total
+            "detalles_por_item": list,  # Detalle de cada verificación
+            "error": str (si aplica)
+        }
+    """
+    if not oc_items:
+        return {"status": "error", "error": "No se proporcionaron items de OC"}
+
+    # Si solo hay 1 item, usar la función original
+    if len(oc_items) == 1:
+        oc_info = {
+            "PurchaseOrder": oc_items[0].get("PurchaseOrder", ""),
+            "PurchaseOrderItem": oc_items[0].get("PurchaseOrderItem", ""),
+            "Material": oc_items[0].get("Material", "")
+        }
+        resultado = verificar_entradas_material(factura_datos, oc_info)
+        if resultado.get("status") == "success":
+            return {
+                "status": "success",
+                "reference_documents": [resultado["reference_document"]],
+                "items_verificados": 1,
+                "items_ok": 1,
+                "match_score": resultado.get("match_score", 100),
+                "cantidad_disponible": resultado.get("cantidad_disponible", 0),
+                "detalles_por_item": [resultado]
+            }
+        else:
+            return resultado
+
+    print("\n" + "=" * 70)
+    print(f"VERIFICACION MULTI-ITEM DE ENTRADA DE MATERIAL (MIGO)")
+    print(f"Items a verificar: {len(oc_items)}")
+    print("=" * 70)
+
+    reference_documents = []
+    detalles = []
+    scores = []
+    cantidades = []
+
+    items_factura = factura_datos.get("Items", [])
+
+    for idx, oc_item in enumerate(oc_items):
+        print(f"\n  --- ITEM {idx + 1}/{len(oc_items)} ---")
+
+        # Crear factura_datos temporal con el item correspondiente
+        factura_item = factura_datos.copy()
+        if idx < len(items_factura):
+            factura_item["Items"] = [items_factura[idx]]
+
+        oc_info = {
+            "PurchaseOrder": oc_item.get("PurchaseOrder", ""),
+            "PurchaseOrderItem": oc_item.get("PurchaseOrderItem", ""),
+            "Material": oc_item.get("Material", "")
+        }
+
+        resultado = verificar_entradas_material(factura_item, oc_info)
+        detalles.append(resultado)
+
+        if resultado.get("status") == "success":
+            reference_documents.append(resultado["reference_document"])
+            scores.append(resultado.get("match_score", 100))
+            cantidades.append(resultado.get("cantidad_disponible", 0))
+        else:
+            # Si un item falla, marcar como None para indicar fallo
+            reference_documents.append(None)
+            print(f"     [X] Item {idx + 1} FALLO: {resultado.get('error', 'Error desconocido')}")
+
+    # Evaluar resultado global
+    items_ok = sum(1 for rd in reference_documents if rd is not None)
+
+    print(f"\n  {'='*60}")
+    print(f"  RESUMEN VERIFICACION MULTI-ITEM:")
+    print(f"     Items verificados: {len(oc_items)}")
+    print(f"     Items OK: {items_ok}")
+    print(f"     Items fallidos: {len(oc_items) - items_ok}")
+    print(f"  {'='*60}")
+
+    if items_ok == 0:
+        return {
+            "status": "no_match",
+            "error": "Ningún item tiene entrada de material válida",
+            "items_verificados": len(oc_items),
+            "items_ok": 0,
+            "detalles_por_item": detalles
+        }
+    elif items_ok < len(oc_items):
+        return {
+            "status": "partial",
+            "error": f"Solo {items_ok} de {len(oc_items)} items tienen MIGO válido",
+            "reference_documents": reference_documents,
+            "items_verificados": len(oc_items),
+            "items_ok": items_ok,
+            "match_score": sum(scores) / len(scores) if scores else 0,
+            "cantidad_disponible": sum(cantidades),
+            "detalles_por_item": detalles
+        }
+    else:
+        return {
+            "status": "success",
+            "reference_documents": reference_documents,
+            "items_verificados": len(oc_items),
+            "items_ok": items_ok,
+            "match_score": sum(scores) / len(scores) if scores else 100,
+            "cantidad_disponible": sum(cantidades),
+            "detalles_por_item": detalles
+        }
